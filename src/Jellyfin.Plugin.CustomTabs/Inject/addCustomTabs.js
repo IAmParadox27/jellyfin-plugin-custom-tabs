@@ -12,7 +12,7 @@ if (typeof customTabsPlugin == 'undefined') {
             } );
         },
         mutationHandler: function (mutationRecords) {
-            if (PluginPages.initialized) {
+            if (customTabsPlugin.initialized) {
                 return;
             }
             mutationRecords.forEach ( function (mutation) {
