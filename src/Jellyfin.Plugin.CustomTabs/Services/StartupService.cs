@@ -78,7 +78,7 @@ namespace Jellyfin.Plugin.CustomTabs.Services
         {
             yield return new TaskTriggerInfo()
             {
-                Type = TaskTriggerInfo.TriggerStartup
+                Type = TaskTriggerInfoType.StartupTrigger
             };
         }
     }
