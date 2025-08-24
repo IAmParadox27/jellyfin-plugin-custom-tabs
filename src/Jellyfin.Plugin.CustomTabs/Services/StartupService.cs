@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using System.Runtime.Loader;
 using Jellyfin.Plugin.CustomTabs.Helpers;
+using Jellyfin.Plugin.CustomTabs.JellyfinVersionSpecific;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Playlists;
@@ -74,12 +75,6 @@ namespace Jellyfin.Plugin.CustomTabs.Services
             return Task.CompletedTask;
         }
 
-        public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
-        {
-            yield return new TaskTriggerInfo()
-            {
-                Type = TaskTriggerInfoType.StartupTrigger
-            };
-        }
+        public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => StartupServiceHelper.GetDefaultTriggers();
     }
 }
