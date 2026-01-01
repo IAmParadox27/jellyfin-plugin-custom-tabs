@@ -38,10 +38,10 @@ namespace Jellyfin.Plugin.CustomTabs.Helpers
                 }
 
                 finalReplacement = finalReplacement
-                    .Replace('\r', ' ')
-                    .Replace('\n', ' ')
-                    .Replace("  ", " ")
-                    .Replace("'undefined'", "\\'undefined\\'");
+                    .Replace("\\", "\\\\")
+                    .Replace("'", "\\'")
+                    .Replace("\r", " ")
+                    .Replace("\n", " ");
                 
                 buffer = Regex.Replace(buffer, "(id=\"favoritesTab\" data-index=\"1\"> <div class=\"sections\"></div> </div>)", $"$1{finalReplacement}");
             }

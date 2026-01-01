@@ -7,13 +7,13 @@ if (typeof window.customTabsPlugin == 'undefined') {
         currentPage: null,
 
         // Kicks off the process
-        init: function() {
+        init: function () {
             console.log('CustomTabs: Initializing plugin');
             this.waitForUI();
         },
 
         // Waits for the necessary page elements to be ready before acting
-        waitForUI: function() {
+        waitForUI: function () {
             // Check if we are on the home page by looking at the URL hash
             const hash = window.location.hash;
             if (hash !== '' && hash !== '#/home' && hash !== '#/home.html' && !hash.includes('#/home?') && !hash.includes('#/home.html?')) {
@@ -32,7 +32,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
         },
 
         // Fetches config and creates the tab elements in the DOM
-        createCustomTabs: function() {
+        createCustomTabs: function () {
             console.debug('CustomTabs: Starting tab creation process');
 
             const tabsSlider = document.querySelector('.emby-tabs-slider');
@@ -92,9 +92,45 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     console.log(`CustomTabs: Added tab ${customTabId} to tabs slider`);
                 });
 
+                // Apply dynamic mappings if any
+                this.applyMappings(configs);
+
                 console.log('CustomTabs: All custom tabs created successfully');
             }).catch((error) => {
                 console.error('CustomTabs: Error fetching tab configs:', error);
+            });
+        },
+
+        // Replaces {DYNAMIC_URL} placeholders based on current hostname
+        applyMappings: function (configs) {
+            const currentHost = window.location.hostname;
+            console.debug('CustomTabs: Checking mappings for host:', currentHost);
+
+            configs.forEach((config, i) => {
+                if (config.Mappings && config.Mappings.length > 0) {
+                    const mapping = config.Mappings.find(m => m.Hostname.toLowerCase() === currentHost.toLowerCase());
+                    if (mapping) {
+                        console.log(`CustomTabs: Found mapping for tab ${i}: ${mapping.Url}`);
+
+                        const applyToDiv = (div) => {
+                            if (div.innerHTML.includes('{DYNAMIC_URL}')) {
+                                div.innerHTML = div.innerHTML.replace(/{DYNAMIC_URL}/g, mapping.Url);
+                                console.debug(`CustomTabs: Replaced {DYNAMIC_URL} in customTab_${i}`);
+                            }
+                        };
+
+                        const tabDiv = document.getElementById(`customTab_${i}`);
+                        if (tabDiv) {
+                            applyToDiv(tabDiv);
+                        } else {
+                            // If not found yet, wait a bit (Jellyfin might still be rendering)
+                            setTimeout(() => {
+                                const retryDiv = document.getElementById(`customTab_${i}`);
+                                if (retryDiv) applyToDiv(retryDiv);
+                            }, 500);
+                        }
+                    }
+                }
             });
         }
     };
@@ -126,13 +162,13 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
     // Monkey-patch history API to detect navigation
     const originalPushState = history.pushState;
-    history.pushState = function() {
+    history.pushState = function () {
         originalPushState.apply(history, arguments);
         handleNavigation();
     };
 
     const originalReplaceState = history.replaceState;
-    history.replaceState = function() {
+    history.replaceState = function () {
         originalReplaceState.apply(history, arguments);
         handleNavigation();
     };
