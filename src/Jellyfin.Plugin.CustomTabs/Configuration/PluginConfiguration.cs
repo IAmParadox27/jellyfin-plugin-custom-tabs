@@ -12,5 +12,14 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         public string ContentHtml { get; set; } = string.Empty;
 
         public string Title { get; set; } = string.Empty;
+
+        public HostMapping[] Mappings { get; set; } = Array.Empty<HostMapping>();
+    }
+
+    public class HostMapping
+    {
+        public string Hostname { get; set; } = string.Empty;
+
+        public string Url { get; set; } = string.Empty;
     }
 }

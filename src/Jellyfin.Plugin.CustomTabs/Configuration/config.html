@@ -1,148 +1,213 @@
 ﻿<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/html">
+
 <head>
     <title>Custom Tabs</title>
 </head>
+
 <body>
-<div data-role="page" id="customTabsConfigurationPage" class="page type-interior pluginConfigurationPage fullWidthContent">
-    <div class="content-primary">
-        <div class="verticalSection">
-            <div class="sectionTitleContainer">
-                <h2 class="sectionTitle">Custom Tabs</h2>
-                <a is="emby-linkbutton" class="raised raised-mini" style="margin-left: 2em;" target="_blank"
-                   href="https://github.com/IAmParadox27/jellyfin-plugin-custom-tabs">
-                    <i class="md-icon button-icon button-icon-left secondaryText"></i>
-                    <span>Help</span>
-                </a>
+    <div data-role="page" id="customTabsConfigurationPage"
+        class="page type-interior pluginConfigurationPage fullWidthContent">
+        <div class="content-primary">
+            <div class="verticalSection">
+                <div class="sectionTitleContainer">
+                    <h2 class="sectionTitle">Custom Tabs</h2>
+                    <a is="emby-linkbutton" class="raised raised-mini" style="margin-left: 2em;" target="_blank"
+                        href="https://github.com/IAmParadox27/jellyfin-plugin-custom-tabs">
+                        <i class="md-icon button-icon button-icon-left secondaryText"></i>
+                        <span>Help</span>
+                    </a>
+                </div>
             </div>
+            <hr class="solid">
+
+            <form class="customTabsConfigurationForm">
+                <div id="configurationWrapper">
+                </div>
+                <button id="btnAddCustomTab" is="emby-button" type="button" class="raised button block">
+                    <span>Add new Tab</span>
+                </button>
+                <br />
+                <br />
+                <button id="saveConfig" is="emby-button" type="submit" class="emby-button raised button-submit block">
+                    <span>Save</span>
+                </button>
+            </form>
         </div>
-        <hr class="solid">
-
-        <form class="customTabsConfigurationForm">
-            <div id="configurationWrapper">
-            </div>
-            <button id="btnAddCustomTab" is="emby-button" type="button" class="raised button block">
-                <span>Add new Tab</span>
-            </button>
-            <br />
-            <br />
-            <button id="saveConfig" is="emby-button" type="submit" class="emby-button raised button-submit block">
-                <span>Save</span>
-            </button>
-        </form>
-    </div>
-    <template id="templateCustomTab">
-        <fieldset class="verticalSection-extrabottompadding" data-id="tab-config">
-            <input type="hidden" data-id="hiddenSectionId" />
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="templateDisplayText">Display Text</label>
-                <label class="inputLabel inputLabelUnfocused" for="templateDisplayText"></label>
-                <input id="templateDisplayText" data-id="txtDisplayText" type="text" is="emby-input" min="0" class="emby-input">
-                <div class="fieldDescription">The title of the tab.</div>
-            </div>
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent">Html Content</label>
-                <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent"></label>
-                <textarea style="display:block;" class="emby-textarea emby-input" id="templateHtmlContent" data-id="templateHtmlContent">
+        <template id="templateCustomTab">
+            <fieldset class="verticalSection-extrabottompadding" data-id="tab-config">
+                <input type="hidden" data-id="hiddenSectionId" />
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="templateDisplayText">Display Text</label>
+                    <label class="inputLabel inputLabelUnfocused" for="templateDisplayText"></label>
+                    <input id="templateDisplayText" data-id="txtDisplayText" type="text" is="emby-input" min="0"
+                        class="emby-input">
+                    <div class="fieldDescription">The title of the tab.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent">Html Content</label>
+                    <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent"></label>
+                    <textarea style="display:block;" class="emby-textarea emby-input" id="templateHtmlContent"
+                        data-id="templateHtmlContent">
                 </textarea>
-                <div class="fieldDescription">The html that should be displayed when this tab is shown.</div>
+                    <div class="fieldDescription">The html that should be displayed when this tab is shown. Use
+                        {DYNAMIC_URL} as a placeholder for host-specific URLs.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused">Host Mappings</label>
+                    <div data-id="mappingsContainer" style="margin-top: 10px;"></div>
+                    <button data-id="btnAddMapping" is="emby-button" type="button" class="raised button block"
+                        style="margin-top: 10px;">
+                        <span>Add Host Mapping</span>
+                    </button>
+                    <div class="fieldDescription">Map specific hostnames to URLs. If a match is found, {DYNAMIC_URL}
+                        will be replaced.</div>
+                </div>
+                <button data-id="templateRemoveTab" is="emby-button" type="button" class="emby-button raised block">
+                    <span>Remove Tab</span>
+                </button>
+            </fieldset>
+        </template>
+        <template id="templateHostMapping">
+            <div class="flex align-items-center" data-id="mapping-config"
+                style="margin-bottom: 10px; display: flex; gap: 10px;">
+                <div class="inputContainer" style="flex-grow: 1; margin: 0;">
+                    <input data-id="txtHostname" type="text" is="emby-input" class="emby-input" placeholder="Hostname">
+                </div>
+                <div class="inputContainer" style="flex-grow: 2; margin: 0;">
+                    <input data-id="txtUrl" type="text" is="emby-input" class="emby-input" placeholder="Target URL">
+                </div>
+                <button data-id="btnRemoveMapping" is="emby-button" type="button" class="emby-button raised"
+                    style="margin: 0;">
+                    <span>Remove</span>
+                </button>
             </div>
-            <button data-id="templateRemoveTab" is="emby-button" type="button" class="emby-button raised block">
-                <span>Remove</span>
-            </button>
-        </fieldset>
-    </template>
-    <script type="text/javascript">
-        if (typeof CustomTabsConfig == 'undefined') {
-            
-            const CustomTabsConfig = {
-                pluginId: "fbacd0b6-fd46-4a05-b0a4-2045d6a135b0",
-                configurationWrapper: document.querySelector("#configurationWrapper"),
+        </template>
+        <script type="text/javascript">
+            if (typeof CustomTabsConfig == 'undefined') {
 
-                templateCustomTab: document.querySelector("#templateCustomTab"),
-                
-                btnSave: document.querySelector("#saveConfig"),
-                btnAddCustomTab: document.querySelector("#btnAddCustomTab"),
+                const CustomTabsConfig = {
+                    pluginId: "fbacd0b6-fd46-4a05-b0a4-2045d6a135b0",
+                    configurationWrapper: document.querySelector("#configurationWrapper"),
 
-                saveConfig: function (e) {
-                    e.preventDefault();
-                    Dashboard.showLoadingMsg();
-                    const config = {
-                        Tabs: []
-                    };
-                    
-                    // loop over tab configs
-                    document.querySelectorAll("[data-id=tab-config]").forEach(tabConfig => {
-                        const tab = {
-                            Title: tabConfig.querySelector("[data-id=txtDisplayText]").value,
-                            ContentHtml: tabConfig.querySelector("[data-id=templateHtmlContent]").value,
+                    templateCustomTab: document.querySelector("#templateCustomTab"),
+                    templateHostMapping: document.querySelector("#templateHostMapping"),
+
+                    btnSave: document.querySelector("#saveConfig"),
+                    btnAddCustomTab: document.querySelector("#btnAddCustomTab"),
+
+                    saveConfig: function (e) {
+                        e.preventDefault();
+                        Dashboard.showLoadingMsg();
+                        const config = {
+                            Tabs: []
                         };
-                        
-                        config.Tabs.push(tab);
-                    });
 
-                    window.ApiClient.updatePluginConfiguration(CustomTabsConfig.pluginId, config)
-                        .then(Dashboard.processPluginConfigurationUpdateResult)
-                        .catch(function (error) {
-                            console.error(error);
-                        })
-                        .finally(function () {
-                            Dashboard.hideLoadingMsg();
+                        // loop over tab configs
+                        document.querySelectorAll("[data-id=tab-config]").forEach(tabConfig => {
+                            const tab = {
+                                Title: tabConfig.querySelector("[data-id=txtDisplayText]").value,
+                                ContentHtml: tabConfig.querySelector("[data-id=templateHtmlContent]").value,
+                                Mappings: []
+                            };
+
+                            tabConfig.querySelectorAll("[data-id=mapping-config]").forEach(mappingConfig => {
+                                tab.Mappings.push({
+                                    Hostname: mappingConfig.querySelector("[data-id=txtHostname]").value,
+                                    Url: mappingConfig.querySelector("[data-id=txtUrl]").value
+                                });
+                            });
+
+                            config.Tabs.push(tab);
                         });
-                },
-                loadConfig: function () {
-                    Dashboard.showLoadingMsg();
-                    window.ApiClient.getPluginConfiguration(CustomTabsConfig.pluginId)
-                        .then(function (config) {
-                            for (var i = 0; i < config.Tabs.length; ++i) {
-                                CustomTabsConfig.addCustomTabConfig(config.Tabs[i]);
+
+                        window.ApiClient.updatePluginConfiguration(CustomTabsConfig.pluginId, config)
+                            .then(Dashboard.processPluginConfigurationUpdateResult)
+                            .catch(function (error) {
+                                console.error(error);
+                            })
+                            .finally(function () {
+                                Dashboard.hideLoadingMsg();
+                            });
+                    },
+                    loadConfig: function () {
+                        Dashboard.showLoadingMsg();
+                        window.ApiClient.getPluginConfiguration(CustomTabsConfig.pluginId)
+                            .then(function (config) {
+                                CustomTabsConfig.configurationWrapper.innerHTML = '';
+                                for (var i = 0; i < config.Tabs.length; ++i) {
+                                    CustomTabsConfig.addCustomTabConfig(config.Tabs[i]);
+                                }
+                            })
+                            .catch(function (error) {
+                                console.error(error);
+                            })
+                            .finally(function () {
+                                Dashboard.hideLoadingMsg();
+                            });
+                    },
+                    init: function () {
+                        CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
+                        CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
+                        CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
+                            const target = event.target.closest('button');
+                            if (!target) return;
+
+                            const dataId = target.getAttribute('data-id');
+                            if (dataId === "templateRemoveTab") {
+                                const el = target.closest("[data-id=tab-config]");
+                                CustomTabsConfig.removeTab(el);
+                            } else if (dataId === "btnAddMapping") {
+                                const container = target.closest("[data-id=tab-config]").querySelector("[data-id=mappingsContainer]");
+                                CustomTabsConfig.addMapping(container);
+                            } else if (dataId === "btnRemoveMapping") {
+                                const el = target.closest("[data-id=mapping-config]");
+                                el.remove();
                             }
-                        })
-                        .catch(function (error) {
-                            console.error(error);
-                        })
-                        .finally(function () {
-                            Dashboard.hideLoadingMsg();
                         });
-                },
-                init: function () {
-                    CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
-                    CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
-                    CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
-                        if (event.target.getAttribute('data-id') === "templateRemoveTab") {
-                            const el = event.target.closest("[data-id=tab-config]");
-                            CustomTabsConfig.removeTab(el);
+                        CustomTabsConfig.loadConfig();
+                    },
+                    addCustomTabNew: function () {
+                        const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
+
+                        template.querySelector('[data-id=txtDisplayText]').value = 'New Tab';
+                        template.querySelector('[data-id=templateHtmlContent]').value = '';
+
+                        CustomTabsConfig.configurationWrapper.appendChild(template);
+                    },
+                    addCustomTabConfig: function (tabConfig) {
+                        const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
+                        template.querySelector('[data-id=txtDisplayText]').value = tabConfig.Title;
+                        template.querySelector('[data-id=templateHtmlContent]').value = tabConfig.ContentHtml;
+
+                        const mappingsContainer = template.querySelector('[data-id=mappingsContainer]');
+                        if (tabConfig.Mappings) {
+                            tabConfig.Mappings.forEach(mapping => {
+                                CustomTabsConfig.addMapping(mappingsContainer, mapping);
+                            });
                         }
-                    });
-                    CustomTabsConfig.loadConfig();
-                },
-                addCustomTabNew: function() {
-                    const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
 
-                    template.querySelector('[data-id=txtDisplayText]').value = 'New Tab';
-                    template.querySelector('[data-id=templateHtmlContent]').value = '';
-
-                    const el = CustomTabsConfig.configurationWrapper.appendChild(template);
-                },
-                addCustomTabConfig: function(tabConfig) {
-                    const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
-                    //template.querySelector('[data-id=hiddenSectionId]').value = tabConfig.SectionId;
-                    template.querySelector('[data-id=txtDisplayText]').value = tabConfig.Title;
-                    template.querySelector('[data-id=templateHtmlContent]').value = tabConfig.ContentHtml;
-
-                    const el = CustomTabsConfig.configurationWrapper.appendChild(template);
-                },
-                removeTab: function(elem) {
-                    elem.remove();
+                        CustomTabsConfig.configurationWrapper.appendChild(template);
+                    },
+                    addMapping: function (container, mappingData) {
+                        const template = CustomTabsConfig.templateHostMapping.cloneNode(true).content;
+                        if (mappingData) {
+                            template.querySelector('[data-id=txtHostname]').value = mappingData.Hostname;
+                            template.querySelector('[data-id=txtUrl]').value = mappingData.Url;
+                        }
+                        container.appendChild(template);
+                    },
+                    removeTab: function (elem) {
+                        elem.remove();
+                    }
                 }
+                // view.addEventListener("viewshow", function (e) {
+                document.querySelector('#customTabsConfigurationPage').addEventListener("pageshow", function () {
+                    CustomTabsConfig.init();
+                });
             }
-
-            // view.addEventListener("viewshow", function (e) {
-            document.querySelector('#customTabsConfigurationPage').addEventListener("pageshow", function () {
-                CustomTabsConfig.init();
-            });
-        }
-    </script>
-</div>
+        </script>
+    </div>
 </body>
+
 </html>
