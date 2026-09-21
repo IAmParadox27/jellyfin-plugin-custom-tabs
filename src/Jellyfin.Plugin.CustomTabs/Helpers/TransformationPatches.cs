@@ -29,18 +29,14 @@ namespace Jellyfin.Plugin.CustomTabs.Helpers
                 string finalReplacement = "";
                 for (int i = 0; i < CustomTabsPlugin.Instance.Configuration.Tabs.Length; ++i)
                 {
-                    TabConfig tabConfig = CustomTabsPlugin.Instance.Configuration.Tabs[i];
-
                     finalReplacement += tabTemplate
                         .Replace("{{tab_id}}", $"customTab_{i}")
                         .Replace("{{tab_index}}", $"{i + 2}")
-                        .Replace("{{tab_content}}", tabConfig.ContentHtml);
+                        .Replace("{{tab_content}}", "");
                 }
 
                 finalReplacement = finalReplacement
-                    .Replace('\r', ' ')
-                    .Replace('\n', ' ')
-                    .Replace("  ", " ")
+                    .Replace("$", "$$")
                     .Replace("'undefined'", "\\'undefined\\'");
                 
                 buffer = Regex.Replace(buffer, "(id=\"favoritesTab\" data-index=\"1\"> <div class=\"sections\"></div> </div>)", $"$1{finalReplacement}");
