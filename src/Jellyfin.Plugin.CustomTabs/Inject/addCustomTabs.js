@@ -330,14 +330,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
             link.removeAttribute('aria-current');
             this.setModernLabel(link, config.Title);
 
-            const path = link.querySelector('svg path');
-            if (path) {
-                path.setAttribute('d', 'M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m0 16H3V5h10v4h8z');
-                const svg = link.querySelector('svg');
-                if (svg) {
-                    svg.removeAttribute('data-testid');
-                }
-            }
+            link.querySelectorAll('.MuiButton-startIcon, .MuiListItemIcon-root, svg')
+                .forEach((icon) => icon.remove());
         },
 
         // The header button keeps its label in a trailing text node; the drawer
