@@ -5,7 +5,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
     window.customTabsPlugin = {
         initialized: false,
         currentPage: null,
-        renderedTabs: new Set(),
+        renderedTabs: new WeakSet(),
         tabConfigs: {},
         configs: null,
         configPromise: null,
@@ -155,11 +155,13 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // stable MUI component classes only, and clone a live sibling for the
         // rest of the styling.
         getModernBar: function() {
+            if (document.body.classList.contains('dashboardDocument')) return null;
             return document.querySelector('header.MuiAppBar-root .MuiToolbar-root .MuiStack-root');
         },
 
         // Below roughly 768px the header links unmount and MUI renders a drawer
         getModernDrawerList: function() {
+            if (document.body.classList.contains('dashboardDocument')) return null;
             return document.querySelector('.MuiDrawer-paper ul.MuiList-root');
         },
 
@@ -423,17 +425,18 @@ if (typeof window.customTabsPlugin == 'undefined') {
             if (!this.tabConfigs) return;
 
             Object.keys(this.tabConfigs).forEach((tabContentId) => {
-                if (this.renderedTabs.has(tabContentId)) return;
-
                 let tabDiv = document.getElementById(tabContentId);
                 if (!tabDiv) {
                     tabDiv = this.ensureContentDiv(tabContentId);
                     if (!tabDiv) return;
                 }
 
+                // Navigation can replace a panel while reusing its ID.
+                if (this.renderedTabs.has(tabDiv)) return;
+
                 const config = this.tabConfigs[tabContentId];
                 this.setInnerHTMLWithScripts(tabDiv, config.ContentHtml || '');
-                this.renderedTabs.add(tabContentId);
+                this.renderedTabs.add(tabDiv);
                 console.debug(`CustomTabs: Rendered content for ${tabContentId}`);
             });
         },
