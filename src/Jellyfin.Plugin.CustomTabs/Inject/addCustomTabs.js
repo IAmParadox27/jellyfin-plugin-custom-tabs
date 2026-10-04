@@ -38,6 +38,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // link's stale number after we applied it, so a new tab strip applies
         // it again.
         appliedLink: null,
+        // Set when a refresh removed the custom tab that was selected.
+        removedSelected: false,
         // The stale number a ctTab link was corrected from (Jellyfin may still
         // select it a moment later, from the URL it routed with).
         correctedFrom: null,
@@ -333,9 +335,14 @@ if (typeof window.customTabsPlugin == 'undefined') {
             let changed = false;
             const configs = this.configs;
 
+            const tabsElem = slider.closest('[is="emby-tabs"]');
             slider.querySelectorAll('[id^="customTabButton_"]').forEach((button) => {
                 const i = parseInt(button.id.replace('customTabButton_', ''), 10);
                 if (!(i < configs.length)) {
+                    if (button.classList.contains('emby-tab-button-active')
+                        || (tabsElem && typeof tabsElem.selectedIndex === 'function' && tabsElem.selectedIndex() === i + 2)) {
+                        this.removedSelected = true;
+                    }
                     button.remove();
                     changed = true;
                 }
@@ -471,20 +478,27 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
             const button = buttons[selected];
             const panel = panels[selected];
-            if (!button || !panel) {
-                // The selected tab is gone (removed while it was open). If that
-                // left nothing shown, show Home rather than a blank page.
-                if (!highlighted.length && !panels.some((el) => el.classList.contains('is-active'))
-                    && buttons[0] && panels[0]) {
+            // Our own tab was removed by a refresh while it was open, and nothing
+            // real took its place (nothing there, or only a hidden placeholder
+            // another plugin keeps for the index): show Home, not a blank page.
+            // Without that, a missing tab may be another plugin's not drawn yet.
+            if (this.removedSelected && (!button || !panel || button.classList.contains('hide'))) {
+                this.removedSelected = false;
+                if (buttons[0] && panels[0]) {
                     tabsElem.selectedIndex(0);
                 }
                 return;
             }
-            if (button.getAttribute('data-index') !== String(selected)
-                || panel.getAttribute('data-index') !== String(selected)) {
-                // The tab strip and panels do not line up (yet); leave them alone.
+            if (!button || !panel) {
                 return;
             }
+            if (button.getAttribute('data-index') !== String(selected)
+                || panel.getAttribute('data-index') !== String(selected)) {
+                // The tab strip and panels do not line up (yet); leave them alone,
+                // and decide about a removed tab once they do.
+                return;
+            }
+            this.removedSelected = false;
 
             const isOurs = button.id.indexOf('customTabButton_') === 0 && panel.id.indexOf('customTab_') === 0;
             const strayPanels = panels.filter((el) => el !== panel && el.classList.contains('is-active'));
