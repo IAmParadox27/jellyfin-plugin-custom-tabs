@@ -106,7 +106,12 @@
                     };
 
                     window.ApiClient.updatePluginConfiguration(pluginId, config)
-                        .then(Dashboard.processPluginConfigurationUpdateResult)
+                        .then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                            // Pick up the ids the server gave new tabs, so saving
+                            // again keeps them (and links to those tabs keep working).
+                            loadConfig();
+                        })
                         .catch(function (error) {
                             console.error(error);
                         })

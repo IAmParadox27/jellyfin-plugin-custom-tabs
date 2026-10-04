@@ -578,13 +578,13 @@ if (typeof window.customTabsPlugin == 'undefined') {
             if (this.isHomeHash()) {
                 this.refreshOnVisit();
             }
-            if (!this.configs || !this.configs.length) {
+            if (!this.configs.length) {
                 this.removeModernTabs();
-                return;
+            } else {
+                this.ensureModernStyles();
+                this.ensureModernTabs();
             }
-
-            this.ensureModernStyles();
-            this.ensureModernTabs();
+            // Even with no tabs left, a saved link to a deleted tab must land on Home.
             this.renderModernContent();
             // Jellyfin still selects the link's number in the hidden legacy tab
             // strip; a link to a deleted tab must land on Home there too.
