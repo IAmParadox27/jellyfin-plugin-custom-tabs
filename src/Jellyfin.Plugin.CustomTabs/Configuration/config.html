@@ -139,23 +139,27 @@
                     // What is on the form is now what the server will hold; a load
                     // already in flight must not put older values back.
                     edits++;
-                    saving = saving.then(save, save);
+                    // Save what is on the form now, even if an earlier save is still
+                    // running and the form changes before this one is sent.
+                    const config = readForm();
+                    saving = saving.then(function () { return save(config); }, function () { return save(config); });
                 }
 
-                function save() {
-                    Dashboard.showLoadingMsg();
-                    const rows = Array.from(wrapper.querySelectorAll('[data-id=tab-config]'));
-                    const config = {
-                        Tabs: rows.map(function (row) {
+                function readForm() {
+                    return {
+                        Tabs: Array.from(wrapper.querySelectorAll('[data-id=tab-config]')).map(function (row) {
                             return {
-                                // Kept so links to this tab keep working; new tabs get one on save.
+                                // Kept so links to this tab keep working.
                                 Id: row.querySelector('[data-id=tabId]').value,
                                 Title: row.querySelector('[data-id=txtDisplayText]').value,
                                 ContentHtml: row.querySelector('[data-id=templateHtmlContent]').value
                             };
                         })
                     };
+                }
 
+                function save(config) {
+                    Dashboard.showLoadingMsg();
                     return window.ApiClient.updatePluginConfiguration(pluginId, config)
                         .then(Dashboard.processPluginConfigurationUpdateResult)
                         .catch(function (error) {
