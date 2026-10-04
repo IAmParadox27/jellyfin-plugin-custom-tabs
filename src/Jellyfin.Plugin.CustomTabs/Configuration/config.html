@@ -75,10 +75,22 @@
                     wrapper.appendChild(row);
                 }
 
+                // Bumped by every edit, so a load that answers after the user
+                // started editing does not throw those edits away.
+                let edits = 0;
+                let loading = null;
+
                 function loadConfig() {
+                    if (loading) {
+                        return loading;
+                    }
+                    const editsAtStart = edits;
                     Dashboard.showLoadingMsg();
-                    window.ApiClient.getPluginConfiguration(pluginId)
+                    loading = window.ApiClient.getPluginConfiguration(pluginId)
                         .then(function (config) {
+                            if (edits !== editsAtStart) {
+                                return;
+                            }
                             // Re-showing the page must not append the tabs a second time.
                             wrapper.innerHTML = '';
                             (config.Tabs || []).forEach(addRow);
@@ -87,8 +99,10 @@
                             console.error(error);
                         })
                         .finally(function () {
+                            loading = null;
                             Dashboard.hideLoadingMsg();
                         });
+                    return loading;
                 }
 
                 // Saves run one after another, so a quick second save waits for
@@ -139,13 +153,18 @@
                 }
 
                 view.querySelector('#btnAddCustomTab').addEventListener('click', function () {
+                    edits++;
                     addRow({ Title: 'New Tab', ContentHtml: '' });
+                });
+                wrapper.addEventListener('input', function () {
+                    edits++;
                 });
                 form.addEventListener('submit', saveConfig);
                 wrapper.addEventListener('click', function (event) {
                     // The click can land on the button's inner <span>.
                     const remove = event.target.closest('[data-id=templateRemoveTab]');
                     if (remove) {
+                        edits++;
                         remove.closest('[data-id=tab-config]').remove();
                     }
                 });
