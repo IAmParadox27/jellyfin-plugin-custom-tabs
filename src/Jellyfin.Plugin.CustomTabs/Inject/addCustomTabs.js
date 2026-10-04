@@ -149,12 +149,12 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
             this.onHome = onHome;
 
-            const layout = this.detectLayout();
-            if (layout) {
-                this.layout = layout;
-            }
+            // Changing the layout reloads the app, so it is detected once.
             if (!this.layout) {
-                return;
+                this.layout = this.detectLayout();
+                if (!this.layout) {
+                    return;
+                }
             }
 
             if (!this.configs) {
@@ -272,11 +272,17 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // (hidden) and can hold two Home views at once, e.g. #/home and
         // #/home?tab=2, whose panels share IDs, so every lookup is scoped here.
         getActiveHomeView: function() {
-            const homeTabs = document.querySelectorAll('.tabContent.pageTabContent[data-index="0"]');
-            for (let i = homeTabs.length - 1; i >= 0; i--) {
-                const view = homeTabs[i].parentElement;
-                if (view && !view.classList.contains('hide') && !view.hidden && this.isShown(view)) {
-                    return view;
+            const views = Array.from(document.querySelectorAll('.tabContent.pageTabContent[data-index="0"]'))
+                .map((homeTab) => homeTab.parentElement)
+                .filter((view) => view && !view.classList.contains('hide') && !view.hidden);
+            if (views.length === 1) {
+                // The common case: the only Home view not hidden by Jellyfin.
+                // No need to ask the browser for layout on every pass.
+                return views[0];
+            }
+            for (let i = views.length - 1; i >= 0; i--) {
+                if (this.isShown(views[i])) {
+                    return views[i];
                 }
             }
             return null;
@@ -775,7 +781,13 @@ if (typeof window.customTabsPlugin == 'undefined') {
         },
 
         setModernSelected: function(index) {
-            document.querySelectorAll('a[id^="customTabButton_"], [id^="customTabDrawerButton_"]').forEach((link) => {
+            const links = [];
+            [this.getModernBar(), this.getModernDrawerList()].forEach((container) => {
+                if (container) {
+                    links.push(...container.querySelectorAll('a[id^="customTabButton_"], [id^="customTabDrawerButton_"]'));
+                }
+            });
+            links.forEach((link) => {
                 const own = parseInt(link.id.replace(/\D+/g, ''), 10);
                 if (index !== null && own === index) {
                     if (link.getAttribute('aria-current') !== 'page') link.setAttribute('aria-current', 'page');
