@@ -136,6 +136,9 @@
                     if (btnSave.disabled) {
                         return;
                     }
+                    // What is on the form is now what the server will hold; a load
+                    // already in flight must not put older values back.
+                    edits++;
                     saving = saving.then(save, save);
                 }
 
