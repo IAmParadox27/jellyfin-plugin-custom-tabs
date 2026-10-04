@@ -160,6 +160,11 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
 
             if (!this.configs) {
+                // A tab picked while the list is still loading must already
+                // count as the user's choice over a ctTab link.
+                if (this.layout === 'legacy' && this.isHomeHash()) {
+                    this.watchTabs(document.querySelector('.emby-tabs-slider')?.closest('[is="emby-tabs"]'));
+                }
                 this.loadConfigs();
                 return;
             }

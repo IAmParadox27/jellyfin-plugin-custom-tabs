@@ -97,6 +97,9 @@
                 // started editing does not throw those edits away.
                 let edits = 0;
                 let loading = null;
+                // Saves run one after another, and a load waits for them, so it
+                // never shows (and later re-saves) what was there before a save.
+                let saving = Promise.resolve();
 
                 function loadConfig() {
                     if (loading) {
@@ -104,7 +107,10 @@
                     }
                     const editsAtStart = edits;
                     Dashboard.showLoadingMsg();
-                    loading = window.ApiClient.getPluginConfiguration(pluginId)
+                    loading = saving
+                        .then(function () {
+                            return window.ApiClient.getPluginConfiguration(pluginId);
+                        })
                         .then(function (config) {
                             if (edits !== editsAtStart) {
                                 return;
@@ -124,8 +130,6 @@
                     return loading;
                 }
 
-                // Saves run one after another.
-                let saving = Promise.resolve();
 
                 function saveConfig(e) {
                     e.preventDefault();
