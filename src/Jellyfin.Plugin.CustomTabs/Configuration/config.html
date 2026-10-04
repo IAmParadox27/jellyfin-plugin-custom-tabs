@@ -33,7 +33,7 @@
     </div>
     <template id="templateCustomTab">
         <fieldset class="verticalSection-extrabottompadding" data-id="tab-config">
-            <input type="hidden" data-id="hiddenSectionId" />
+            <input type="hidden" data-id="tabId" />
             <div class="inputContainer">
                 <input data-id="txtDisplayText" type="text" is="emby-input" label="Display Text">
                 <div class="fieldDescription">The title of the tab.</div>
@@ -69,6 +69,7 @@
 
                 function addRow(tabConfig) {
                     const row = template.content.cloneNode(true);
+                    row.querySelector('[data-id=tabId]').value = tabConfig.Id || '';
                     row.querySelector('[data-id=txtDisplayText]').value = tabConfig.Title;
                     row.querySelector('[data-id=templateHtmlContent]').value = tabConfig.ContentHtml;
                     wrapper.appendChild(row);
@@ -96,6 +97,8 @@
                     const config = {
                         Tabs: Array.from(wrapper.querySelectorAll('[data-id=tab-config]')).map(function (row) {
                             return {
+                                // Kept so links to this tab keep working; new tabs get one on save.
+                                Id: row.querySelector('[data-id=tabId]').value,
                                 Title: row.querySelector('[data-id=txtDisplayText]').value,
                                 ContentHtml: row.querySelector('[data-id=templateHtmlContent]').value
                             };

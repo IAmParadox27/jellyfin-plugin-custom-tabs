@@ -30,6 +30,16 @@ if (typeof window.customTabsPlugin == 'undefined') {
         observer: null,
         syncPending: false,
         watchedTabs: null,
+        // The ctTab link last applied, or overridden by the user's own pick:
+        // { hash, tabs, byUser }. Jellyfin can rebuild the tab strip with the
+        // link's stale number after we applied it, so a new tab strip applies
+        // it again.
+        appliedLink: null,
+        // The stale number a ctTab link was corrected from (Jellyfin may still
+        // select it a moment later, from the URL it routed with).
+        correctedFrom: null,
+        selectingTab: false,
+        lastTabStripInput: 0,
 
         // Kicks off the process. Safe to call any number of times.
         init: function() {
@@ -80,7 +90,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // Store a fresh tab list. When it differs from the one on screen, every
         // tab of ours is rebuilt on the next sync.
         applyConfigs: function(configs) {
-            const signature = JSON.stringify(configs.map((config) => [config.Title, config.ContentHtml]));
+            const signature = JSON.stringify(configs.map((config) => [config.Id, config.Title, config.ContentHtml]));
             this.configPromise = Promise.resolve(configs);
             if (signature === this.configSignature) {
                 return;
@@ -132,6 +142,10 @@ if (typeof window.customTabsPlugin == 'undefined') {
             const onHome = this.isHomeHash();
             if (onHome && !this.onHome) {
                 this.homeVisits++;
+            }
+            if (!onHome) {
+                this.appliedLink = null;
+                this.correctedFrom = null;
             }
             this.onHome = onHome;
 
@@ -194,6 +208,64 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
         },
 
+        // --- Links -----------------------------------------------------------
+        // A tab's link is #/home?tab=N&ctTab=<id>. N is what Jellyfin selects;
+        // the id keeps a saved link on the same tab when tabs are added,
+        // removed or reordered (N is the tab's position + 2). A link whose N no
+        // longer matches its id is corrected in place before it is used.
+
+        hashParam: function(name) {
+            const match = new RegExp('[?&]' + name + '=([^&]*)').exec(window.location.hash);
+            if (!match) {
+                return null;
+            }
+            try {
+                return decodeURIComponent(match[1]);
+            } catch (e) {
+                return match[1];
+            }
+        },
+
+        tabLink: function(index) {
+            const id = this.configs[index] && this.configs[index].Id;
+            return `#/home?tab=${index + 2}` + (id ? `&ctTab=${encodeURIComponent(id)}` : '');
+        },
+
+        // The custom tab the URL asks for: { index, id } (index null when a
+        // ctTab link names a tab that no longer exists; such a link is pointed
+        // at Home, tab=0), or null when the URL names no custom tab.
+        resolveLinkedTab: function() {
+            if (!this.isHomeHash() || !this.configs) {
+                return null;
+            }
+
+            const id = this.hashParam('ctTab');
+            const tab = parseInt(this.hashParam('tab'), 10);
+            if (id !== null) {
+                const index = this.configs.findIndex((config) => config.Id === id);
+                const wanted = index === -1 ? 0 : index + 2;
+                if (tab !== wanted) {
+                    this.correctedFrom = isNaN(tab) ? null : tab;
+                    const route = window.location.hash.split('?')[0];
+                    const hash = `${route}?tab=${wanted}&ctTab=${encodeURIComponent(id)}`;
+                    // A tab the user picked since stays picked; a link we applied
+                    // with the old number is applied again with the new one.
+                    if (this.appliedLink && this.appliedLink.byUser && this.appliedLink.hash === window.location.hash) {
+                        this.appliedLink.hash = hash;
+                    } else {
+                        this.appliedLink = null;
+                    }
+                    history.replaceState(history.state, '', window.location.pathname + window.location.search + hash);
+                }
+                return { index: index === -1 ? null : index, id: id };
+            }
+
+            if (!isNaN(tab) && tab >= 2 && tab - 2 < this.configs.length) {
+                return { index: tab - 2, id: null };
+            }
+            return null;
+        },
+
         // --- Legacy layout (10.11, and 12.x with a legacy layout) ------------
 
         // The Home view currently shown. Jellyfin keeps earlier views in the DOM
@@ -224,6 +296,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
             const buttonsChanged = this.ensureLegacyButtons(slider);
             this.ensureLegacyPanels(view);
+            this.applyLinkedTab(tabsElem);
             this.reconcileSelection(tabsElem, view);
 
             // The tab strip caches each button's position when it is built and
@@ -408,14 +481,66 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
         },
 
+        // Open the tab a ctTab link names, once its button exists. Jellyfin
+        // already selected the link's number when Home rendered, which may
+        // have been stale. A tab the user picks first spends the link.
+        applyLinkedTab: function(tabsElem) {
+            const link = this.resolveLinkedTab();
+            if (!link || link.id === null || !tabsElem || typeof tabsElem.selectedIndex !== 'function') {
+                return;
+            }
+            if (this.appliedLink && this.appliedLink.hash === window.location.hash
+                && (this.appliedLink.tabs === tabsElem || this.appliedLink.byUser)) {
+                return;
+            }
+
+            const target = link.index === null ? 0 : link.index + 2;
+            const button = tabsElem.querySelectorAll('.emby-tab-button')[target];
+            if (!button || button.getAttribute('data-index') !== String(target)) {
+                return;
+            }
+
+            this.appliedLink = { hash: window.location.hash, tabs: tabsElem, byUser: false };
+            if (tabsElem.selectedIndex() !== target || !button.classList.contains('emby-tab-button-active')) {
+                this.selectingTab = true;
+                try {
+                    tabsElem.selectedIndex(target);
+                } finally {
+                    this.selectingTab = false;
+                }
+            }
+        },
+
         // A click is recorded 120 ms after it is shown, without a DOM change
-        // we could observe, so re-check when Jellyfin reports it.
+        // we could observe, so re-check when Jellyfin reports it. A tab picked
+        // by the user (anything but the URL's own number, which is Jellyfin's
+        // first selection, or any pick right after input in the tab strip)
+        // spends a pending ctTab link.
         watchTabs: function(tabsElem) {
             if (!tabsElem || tabsElem === this.watchedTabs) {
                 return;
             }
             this.watchedTabs = tabsElem;
             tabsElem.addEventListener('tabchange', () => this.scheduleSync());
+            tabsElem.addEventListener('beforetabchange', (e) => {
+                if (this.selectingTab) {
+                    return;
+                }
+                const picked = parseInt(e.detail && e.detail.selectedTabIndex, 10);
+                const tab = parseInt(this.hashParam('tab'), 10);
+                const userInput = Date.now() - this.lastTabStripInput < 1000;
+                if (!userInput && this.correctedFrom !== null && picked === this.correctedFrom) {
+                    // Jellyfin's own first selection, made with the link's stale
+                    // number after we already corrected it: apply the link again.
+                    this.correctedFrom = null;
+                    this.appliedLink = null;
+                    this.scheduleSync();
+                    return;
+                }
+                if (picked !== (isNaN(tab) ? 0 : tab) || userInput) {
+                    this.appliedLink = { hash: window.location.hash, tabs: tabsElem, byUser: true };
+                }
+            });
         },
 
         // --- Jellyfin 12 Modern layout ---------------------------------------
@@ -455,6 +580,9 @@ if (typeof window.customTabsPlugin == 'undefined') {
             this.ensureModernStyles();
             this.ensureModernTabs();
             this.renderModernContent();
+            // Jellyfin still selects the link's number in the hidden legacy tab
+            // strip; a link to a deleted tab must land on Home there too.
+            this.applyLinkedTab(document.querySelector('.emby-tabs-slider')?.closest('[is="emby-tabs"]'));
         },
 
         ensureModernStyles: function() {
@@ -565,7 +693,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
         },
 
         decorateModernTab: function(link, config, index) {
-            link.setAttribute('href', `#/home?tab=${index + 2}`);
+            link.setAttribute('href', this.tabLink(index));
             link.removeAttribute('aria-current');
             this.setModernLabel(link, config.Title);
 
@@ -596,16 +724,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // Tab 0 is Home and tab 1 is Favourites, so custom tabs start at 2.
         // React renders nothing for those, which leaves <main> free for us.
         getModernTabIndex: function() {
-            if (!this.isHomeHash()) {
-                return null;
-            }
-            const match = /#\/home(?:\.html)?\?(?:.*&)?tab=(\d+)/.exec(window.location.hash);
-            if (!match) {
-                return null;
-            }
-
-            const index = parseInt(match[1], 10) - 2;
-            return (index >= 0 && this.configs && index < this.configs.length) ? index : null;
+            const link = this.resolveLinkedTab();
+            return link ? link.index : null;
         },
 
         renderModernContent: function() {
@@ -709,6 +829,16 @@ if (typeof window.customTabsPlugin == 'undefined') {
             resync();
         }
     });
+
+    // Real input in the tab strip, so a click on the tab a stale link's
+    // number points at still counts as the user's own pick.
+    const noteTabStripInput = (e) => {
+        if (e.isTrusted && e.target && e.target.closest && e.target.closest('[is="emby-tabs"]')) {
+            window.customTabsPlugin.lastTabStripInput = Date.now();
+        }
+    };
+    document.addEventListener('pointerdown', noteTabStripInput, { capture: true, passive: true });
+    document.addEventListener('keydown', noteTabStripInput, { capture: true, passive: true });
 
     const originalPushState = history.pushState;
     history.pushState = function() {
