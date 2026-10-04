@@ -38,8 +38,10 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // The stale number a ctTab link was corrected from (Jellyfin may still
         // select it a moment later, from the URL it routed with).
         correctedFrom: null,
+        correctedAt: 0,
         selectingTab: false,
         lastTabStripInput: 0,
+        lastUserInput: 0,
 
         // Kicks off the process. Safe to call any number of times.
         init: function() {
@@ -246,6 +248,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 const wanted = index === -1 ? 0 : index + 2;
                 if (tab !== wanted) {
                     this.correctedFrom = isNaN(tab) ? null : tab;
+                    this.correctedAt = Date.now();
                     const route = window.location.hash.split('?')[0];
                     const hash = `${route}?tab=${wanted}&ctTab=${encodeURIComponent(id)}`;
                     // A tab the user picked since stays picked; a link we applied
@@ -535,7 +538,11 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 const picked = parseInt(e.detail && e.detail.selectedTabIndex, 10);
                 const tab = parseInt(this.hashParam('tab'), 10);
                 const userInput = Date.now() - this.lastTabStripInput < 1000;
-                if (!userInput && this.correctedFrom !== null && picked === this.correctedFrom) {
+                // Jellyfin's late first selection comes right after Home renders
+                // and without any input; a swipe or click since then is the user's.
+                const jellyfinsOwn = this.correctedFrom !== null && picked === this.correctedFrom
+                    && this.lastUserInput < this.correctedAt && Date.now() - this.correctedAt < 5000;
+                if (jellyfinsOwn) {
                     // Jellyfin's own first selection, made with the link's stale
                     // number after we already corrected it: apply the link again.
                     this.correctedFrom = null;
@@ -845,11 +852,16 @@ if (typeof window.customTabsPlugin == 'undefined') {
     // Real input in the tab strip, so a click on the tab a stale link's
     // number points at still counts as the user's own pick.
     const noteTabStripInput = (e) => {
-        if (e.isTrusted && e.target && e.target.closest && e.target.closest('[is="emby-tabs"]')) {
+        if (!e.isTrusted) {
+            return;
+        }
+        window.customTabsPlugin.lastUserInput = Date.now();
+        if (e.target && e.target.closest && e.target.closest('[is="emby-tabs"]')) {
             window.customTabsPlugin.lastTabStripInput = Date.now();
         }
     };
     document.addEventListener('pointerdown', noteTabStripInput, { capture: true, passive: true });
+    document.addEventListener('touchstart', noteTabStripInput, { capture: true, passive: true });
     document.addEventListener('keydown', noteTabStripInput, { capture: true, passive: true });
 
     const originalPushState = history.pushState;

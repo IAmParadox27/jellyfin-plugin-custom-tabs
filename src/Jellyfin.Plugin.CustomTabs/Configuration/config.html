@@ -91,11 +91,20 @@
                         });
                 }
 
+                // Saves run one after another, so a quick second save waits for
+                // the ids the first one got.
+                let saving = Promise.resolve();
+
                 function saveConfig(e) {
                     e.preventDefault();
+                    saving = saving.then(save, save);
+                }
+
+                function save() {
                     Dashboard.showLoadingMsg();
+                    const rows = Array.from(wrapper.querySelectorAll('[data-id=tab-config]'));
                     const config = {
-                        Tabs: Array.from(wrapper.querySelectorAll('[data-id=tab-config]')).map(function (row) {
+                        Tabs: rows.map(function (row) {
                             return {
                                 // Kept so links to this tab keep working; new tabs get one on save.
                                 Id: row.querySelector('[data-id=tabId]').value,
@@ -105,12 +114,21 @@
                         })
                     };
 
-                    window.ApiClient.updatePluginConfiguration(pluginId, config)
+                    return window.ApiClient.updatePluginConfiguration(pluginId, config)
                         .then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
-                            // Pick up the ids the server gave new tabs, so saving
-                            // again keeps them (and links to those tabs keep working).
-                            loadConfig();
+                            return window.ApiClient.getPluginConfiguration(pluginId);
+                        })
+                        .then(function (saved) {
+                            // Give the rows just saved the ids the server assigned, in
+                            // place, without touching anything edited since.
+                            const tabs = (saved && saved.Tabs) || [];
+                            rows.forEach(function (row, i) {
+                                const idInput = row.querySelector('[data-id=tabId]');
+                                if (!idInput.value && tabs[i] && tabs[i].Id) {
+                                    idInput.value = tabs[i].Id;
+                                }
+                            });
                         })
                         .catch(function (error) {
                             console.error(error);
