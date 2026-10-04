@@ -8,11 +8,15 @@ namespace Jellyfin.Plugin.CustomTabs.Helpers
 {
     public static class TransformationPatches
     {
+        // Whitespace inside the template, which sits in a JS string in the chunk:
+        // real whitespace, or an escaped \n, \r or \t.
+        private const string Gap = "(?:\\s|\\\\[nrt])";
+
         // The Favorites panel in jellyfin-web's Home template, which the custom
         // tab panels are inserted after. Whitespace-tolerant: themes and other
         // plugins re-format the template (#64).
         private static readonly Regex s_favoritesPanel = new Regex(
-            "id=\"favoritesTab\"\\s+data-index=\"1\"\\s*>\\s*<div\\s+class=\"sections\"\\s*>\\s*</div>\\s*</div>",
+            $"id=\"favoritesTab\"{Gap}+data-index=\"1\"{Gap}*>{Gap}*<div{Gap}+class=\"sections\"{Gap}*>{Gap}*</div>{Gap}*</div>",
             RegexOptions.Compiled);
 
         /// <summary>Set by the startup task so a patch that finds nothing to patch can say so.</summary>
