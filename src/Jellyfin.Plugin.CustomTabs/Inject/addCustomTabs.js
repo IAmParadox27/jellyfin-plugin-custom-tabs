@@ -26,6 +26,9 @@ if (typeof window.customTabsPlugin == 'undefined') {
         onHome: false,
         refreshedFor: 0,
         lastFetch: 0,
+        // Requests are numbered so an older response never replaces a newer one.
+        fetchSeq: 0,
+        appliedSeq: 0,
         layout: null,
         observer: null,
         syncPending: false,
@@ -65,6 +68,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
         refreshConfigs: function() {
             this.lastFetch = Date.now();
+            const seq = ++this.fetchSeq;
             const request = ApiClient.fetch({
                 url: ApiClient.getUrl('CustomTabs/Config'),
                 type: 'GET',
@@ -73,7 +77,10 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     accept: 'application/json'
                 }
             }).then((configs) => {
-                this.applyConfigs(Array.isArray(configs) ? configs : []);
+                if (seq > this.appliedSeq) {
+                    this.appliedSeq = seq;
+                    this.applyConfigs(Array.isArray(configs) ? configs : []);
+                }
                 return this.configs;
             }).catch((error) => {
                 console.error('CustomTabs: Error fetching tab configs:', error);
