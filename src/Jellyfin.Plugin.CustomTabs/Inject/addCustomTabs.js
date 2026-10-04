@@ -1,39 +1,59 @@
-﻿// Scope everything in a check to avoid re-declaring the plugin
+// Scope everything in a check to avoid re-declaring the plugin
 if (typeof window.customTabsPlugin == 'undefined') {
 
-    // Define the plugin on the window object for universal access
+    // Define the plugin on the window object for universal access.
+    //
+    // jellyfin-web resolves a Home tab by *position*, not by data-index: emby-tabs
+    // selects tabButtons[N] and maintabsmanager activates the N-th .tabContent of
+    // the Home view. Custom tab i lives at index i + 2 (after Home and Favorites),
+    // so its button and panel have to sit at position i + 2 as well.
+    //
+    // Everything below is a reconcile pass: it looks at the page that is actually
+    // shown, fixes whatever does not match the configured tabs, and does nothing
+    // when the page is already right. It runs on every relevant change, so it
+    // also repairs what Jellyfin rebuilds behind our back (a re-created Home view,
+    // a rebuilt tab strip, a cached Home page from an earlier visit).
     window.customTabsPlugin = {
-        initialized: false,
-        currentPage: null,
-        renderedTabs: new WeakSet(),
-        tabConfigs: {},
+        // Rendered HTML per panel element. Keyed by element, not ID: Jellyfin
+        // re-creates panels with the same ID when it rebuilds the Home view.
+        renderedTabs: new WeakMap(),
         configs: null,
         configPromise: null,
-        modernObserver: null,
-        modernPending: false,
-        modernMutating: false,
+        configSignature: null,
+        // Home visits so far (a navigation into Home from anywhere else), the
+        // visit the tab list was last re-read for, and when.
+        homeVisits: 0,
+        onHome: false,
+        refreshedFor: 0,
+        lastFetch: 0,
+        layout: null,
+        observer: null,
+        syncPending: false,
+        watchedTabs: null,
 
-        // Kicks off the process
+        // Kicks off the process. Safe to call any number of times.
         init: function() {
-            console.log('CustomTabs: Initializing plugin');
-
-            // Jellyfin 12's Modern layout renders its own React header and hides the
-            // legacy .skinHeader tab bar, so the legacy injection never becomes visible.
-            if (this.isModernLayout()) {
-                this.initModern();
-                return;
-            }
-
-            this.waitForUI();
+            this.startObserver();
+            this.scheduleSync();
         },
 
-        // Fetch the tab configuration once and share it between both layouts
+        isHomeHash: function() {
+            const hash = window.location.hash;
+            return hash === '' || hash === '#/home' || hash === '#/home.html' || hash.includes('#/home?') || hash.includes('#/home.html?');
+        },
+
+        // Fetch the tab configuration, shared by both layouts. A fresh request
+        // is made by refreshConfigs(); until it answers the last list is used.
         loadConfigs: function() {
             if (this.configPromise) {
                 return this.configPromise;
             }
+            return this.refreshConfigs();
+        },
 
-            this.configPromise = ApiClient.fetch({
+        refreshConfigs: function() {
+            this.lastFetch = Date.now();
+            const request = ApiClient.fetch({
                 url: ApiClient.getUrl('CustomTabs/Config'),
                 type: 'GET',
                 dataType: 'json',
@@ -41,107 +61,361 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     accept: 'application/json'
                 }
             }).then((configs) => {
-                this.configs = configs || [];
+                this.applyConfigs(Array.isArray(configs) ? configs : []);
                 return this.configs;
             }).catch((error) => {
                 console.error('CustomTabs: Error fetching tab configs:', error);
-                this.configPromise = null;
-                return [];
+                if (this.configPromise === request) {
+                    this.configPromise = this.configs ? Promise.resolve(this.configs) : null;
+                }
+                return this.configs || [];
             });
 
-            return this.configPromise;
+            if (!this.configs) {
+                this.configPromise = request;
+            }
+            return request;
         },
 
-        // Waits for the necessary page elements to be ready before acting
-        waitForUI: function() {
-            // Check if we are on the home page by looking at the URL hash
-            const hash = window.location.hash;
-            if (hash !== '' && hash !== '#/home' && hash !== '#/home.html' && !hash.includes('#/home?') && !hash.includes('#/home.html?')) {
-                console.debug('CustomTabs: Not on main page, skipping UI check. Hash:', hash);
+        // Store a fresh tab list. When it differs from the one on screen, every
+        // tab of ours is rebuilt on the next sync.
+        applyConfigs: function(configs) {
+            const signature = JSON.stringify(configs.map((config) => [config.Title, config.ContentHtml]));
+            this.configPromise = Promise.resolve(configs);
+            if (signature === this.configSignature) {
                 return;
             }
 
-            // If the UI is ready, create tabs; otherwise, wait and check again
-            if (typeof ApiClient !== 'undefined' && document.querySelector('.emby-tabs-slider')) {
-                console.debug('CustomTabs: UI elements available on main page, creating tabs');
-                this.createCustomTabs();
-            } else {
-                console.debug('CustomTabs: Waiting for UI elements on main page...');
-                setTimeout(() => this.waitForUI(), 200);
+            const hadConfigs = this.configs !== null;
+            this.configs = configs;
+            this.configSignature = signature;
+            if (hadConfigs) {
+                console.log('CustomTabs: Tab configuration changed, updating tabs');
+                this.removeModernTabs();
+            }
+            this.scheduleSync();
+        },
+
+        // --- Scheduling ------------------------------------------------------
+
+        // React and Jellyfin's view manager re-render the header and the Home
+        // view on navigation and discard anything we added, so watch the page
+        // and reconcile once per frame after any change.
+        startObserver: function() {
+            if (this.observer || !document.body) {
+                return;
+            }
+
+            this.observer = new MutationObserver(() => this.scheduleSync());
+            this.observer.observe(document.body, { childList: true, subtree: true });
+        },
+
+        scheduleSync: function() {
+            if (this.syncPending) {
+                return;
+            }
+
+            this.syncPending = true;
+            requestAnimationFrame(() => {
+                this.syncPending = false;
+                this.sync();
+            });
+        },
+
+        sync: function() {
+            if (typeof ApiClient === 'undefined') {
+                return;
+            }
+
+            // Jellyfin may restore a cached Home view, so count visits by
+            // navigation rather than by view element.
+            const onHome = this.isHomeHash();
+            if (onHome && !this.onHome) {
+                this.homeVisits++;
+            }
+            this.onHome = onHome;
+
+            const layout = this.detectLayout();
+            if (layout) {
+                this.layout = layout;
+            }
+            if (!this.layout) {
+                return;
+            }
+
+            if (!this.configs) {
+                this.loadConfigs();
+                return;
+            }
+
+            try {
+                if (this.layout === 'modern') {
+                    // The Modern header (and its links) is shown on every page.
+                    this.syncModern();
+                } else if (this.isHomeHash()) {
+                    this.syncLegacy();
+                }
+            } finally {
+                // Our own changes must not schedule another pass.
+                this.observer?.takeRecords();
             }
         },
 
-        // Fetches config and creates the tab elements in the DOM
-        createCustomTabs: function() {
-            console.debug('CustomTabs: Starting tab creation process');
+        // The Modern layout renders a React header and hides the legacy one;
+        // Jellyfin still builds the hidden legacy tab strip there. Decide from
+        // what is actually shown, and keep waiting while neither has rendered
+        // (at startup React may not have mounted yet).
+        detectLayout: function() {
+            if (this.isModernLayout()) {
+                return 'modern';
+            }
+            const slider = document.querySelector('.emby-tabs-slider');
+            if (slider && this.isShown(slider)) {
+                return 'legacy';
+            }
+            return null;
+        },
 
-            const tabsSlider = document.querySelector('.emby-tabs-slider');
-            if (!tabsSlider) {
-                console.debug('CustomTabs: Tabs slider not found');
+        // Rendered (not display:none itself or through an ancestor). Works for
+        // fixed-position elements such as Jellyfin's header, unlike offsetParent.
+        isShown: function(el) {
+            return el.getClientRects().length > 0;
+        },
+
+        // Re-read the tab list once per Home visit, so tabs the admin added,
+        // removed or edited show up without a reload.
+        refreshOnVisit: function() {
+            if (this.refreshedFor === this.homeVisits) {
+                return;
+            }
+            this.refreshedFor = this.homeVisits;
+            if (Date.now() - this.lastFetch > 1500) {
+                this.refreshConfigs();
+            }
+        },
+
+        // --- Legacy layout (10.11, and 12.x with a legacy layout) ------------
+
+        // The Home view currently shown. Jellyfin keeps earlier views in the DOM
+        // (hidden) and can hold two Home views at once, e.g. #/home and
+        // #/home?tab=2, whose panels share IDs, so every lookup is scoped here.
+        getActiveHomeView: function() {
+            const homeTabs = document.querySelectorAll('.tabContent.pageTabContent[data-index="0"]');
+            for (let i = homeTabs.length - 1; i >= 0; i--) {
+                const view = homeTabs[i].parentElement;
+                if (view && !view.classList.contains('hide') && !view.hidden && this.isShown(view)) {
+                    return view;
+                }
+            }
+            return null;
+        },
+
+        syncLegacy: function() {
+            const slider = document.querySelector('.emby-tabs-slider');
+            const view = this.getActiveHomeView();
+            if (!slider || !view) {
                 return;
             }
 
-            // Prevent creating duplicate tabs if they already exist
-            if (tabsSlider.querySelector('[id^="customTabButton_"]')) {
-                console.debug('CustomTabs: Custom tabs already exist in DOM, skipping creation');
-                this.renderTabContent();
-                return;
+            this.refreshOnVisit();
+
+            const tabsElem = slider.closest('[is="emby-tabs"]');
+            this.watchTabs(tabsElem);
+
+            const buttonsChanged = this.ensureLegacyButtons(slider);
+            this.ensureLegacyPanels(view);
+            this.reconcileSelection(tabsElem, view);
+
+            // The tab strip caches each button's position when it is built and
+            // does not watch for new children.
+            if (buttonsChanged) {
+                tabsElem?.refresh?.();
             }
+        },
 
-            // Fetch tab configuration from the server
-            ApiClient.fetch({
-                url: ApiClient.getUrl('CustomTabs/Config'),
-                type: 'GET',
-                dataType: 'json',
-                headers: {
-                    accept: 'application/json'
+        // Create, update and remove our buttons, and keep them right after
+        // Favorites in index order (Jellyfin selects buttons by position).
+        ensureLegacyButtons: function(slider) {
+            let changed = false;
+            const configs = this.configs;
+
+            slider.querySelectorAll('[id^="customTabButton_"]').forEach((button) => {
+                const i = parseInt(button.id.replace('customTabButton_', ''), 10);
+                if (!(i < configs.length)) {
+                    button.remove();
+                    changed = true;
                 }
-            }).then((configs) => {
-                console.debug('CustomTabs: Retrieved config for', configs.length, 'tabs');
+            });
 
-                const tabsSlider = document.querySelector('.emby-tabs-slider');
-                if (!tabsSlider) {
-                    console.error('CustomTabs: Tabs slider disappeared unexpectedly');
-                    return;
-                }
-
-                // Loop through configs and create a tab for each one
-                configs.forEach((config, i) => {
-                    const customTabId = `customTabButton_${i}`;
-                    const customTabContentId = `customTab_${i}`;
-
-                    // Final check to ensure this specific tab doesn't already exist
-                    if (document.querySelector(`#${customTabId}`)) {
-                        console.debug(`CustomTabs: Tab ${customTabId} already exists, skipping`);
-                        return; // 'return' here acts like 'continue' in a forEach loop
-                    }
-
-                    console.log("CustomTabs: Creating custom tab:", config.Title);
-
-                    const title = document.createElement("div");
-                    title.classList.add("emby-button-foreground");
-                    title.innerText = config.Title;
-
-                    const button = document.createElement("button");
-                    button.type = "button";
-                    button.setAttribute("is", "empty-button");
-                    button.classList.add("emby-tab-button", "emby-button");
-                    button.setAttribute("data-index", i + 2);
-                    button.setAttribute("id", customTabId);
+            configs.forEach((config, i) => {
+                const id = `customTabButton_${i}`;
+                let button = slider.querySelector(`[id="${id}"]`);
+                if (!button) {
+                    button = document.createElement('button');
+                    button.type = 'button';
+                    button.setAttribute('is', 'empty-button');
+                    button.classList.add('emby-tab-button', 'emby-button');
+                    button.id = id;
+                    const title = document.createElement('div');
+                    title.classList.add('emby-button-foreground');
                     button.appendChild(title);
-
-                    tabsSlider.appendChild(button);
-                    console.log(`CustomTabs: Added tab ${customTabId} to tabs slider`);
-
-                    this.tabConfigs[customTabContentId] = config;
-                });
-
-                this.renderTabContent();
-
-                console.log('CustomTabs: All custom tabs created successfully');
-            }).catch((error) => {
-                console.error('CustomTabs: Error fetching tab configs:', error);
+                    slider.appendChild(button);
+                    changed = true;
+                    console.log(`CustomTabs: Added tab ${id} to tabs slider`);
+                }
+                if (button.getAttribute('data-index') !== String(i + 2)) {
+                    button.setAttribute('data-index', String(i + 2));
+                }
+                const title = button.querySelector('.emby-button-foreground');
+                if (title && title.textContent !== config.Title) {
+                    title.textContent = config.Title;
+                }
             });
+
+            if (this.placeAfterFavorites(slider, '.emby-tab-button', (el) => el.id.indexOf('customTabButton_') === 0)) {
+                changed = true;
+            }
+            return changed;
+        },
+
+        // Make sure each tab has its panel in the shown Home view, filled with
+        // its current content. The server normally injects empty panels into the
+        // Home template; when that did not happen (a theme reformatted the
+        // template, a cached template from before a tab was added) they are
+        // created here, with the classes Jellyfin needs to show and hide them.
+        ensureLegacyPanels: function(view) {
+            const configs = this.configs;
+
+            view.querySelectorAll('[id^="customTab_"]').forEach((panel) => {
+                const i = parseInt(panel.id.replace('customTab_', ''), 10);
+                if (panel.parentElement === view && !(i < configs.length)) {
+                    panel.remove();
+                }
+            });
+
+            configs.forEach((config, i) => {
+                const id = `customTab_${i}`;
+                let panel = view.querySelector(`:scope > [id="${id}"]`);
+                if (!panel) {
+                    panel = document.createElement('div');
+                    panel.id = id;
+                    view.appendChild(panel);
+                    console.debug(`CustomTabs: Created missing panel ${id}`);
+                }
+                panel.classList.add('tabContent', 'pageTabContent');
+                if (panel.getAttribute('data-index') !== String(i + 2)) {
+                    panel.setAttribute('data-index', String(i + 2));
+                }
+
+                const html = config.ContentHtml || '';
+                if (this.renderedTabs.get(panel) !== html) {
+                    this.setInnerHTMLWithScripts(panel, html);
+                    this.renderedTabs.set(panel, html);
+                    console.debug(`CustomTabs: Rendered content for ${id}`);
+                }
+            });
+
+            this.placeAfterFavorites(view, '.tabContent', (el) => el.id.indexOf('customTab_') === 0);
+        },
+
+        // Move our elements (direct children of `container` matching `selector`)
+        // into index order right after the index-1 element. Only out-of-place
+        // elements move. Returns whether anything moved.
+        placeAfterFavorites: function(container, selector, isOurs) {
+            const items = Array.from(container.children).filter((el) => el.matches(selector));
+            const favorites = items.find((el) => el.getAttribute('data-index') === '1');
+            if (!favorites) {
+                return false;
+            }
+
+            const ours = items.filter(isOurs).sort((a, b) =>
+                parseInt(a.getAttribute('data-index'), 10) - parseInt(b.getAttribute('data-index'), 10));
+            let changed = false;
+            let ref = favorites;
+            ours.forEach((el) => {
+                if (ref.nextElementSibling !== el) {
+                    container.insertBefore(el, ref.nextElementSibling);
+                    changed = true;
+                }
+                ref = el;
+            });
+            return changed;
+        },
+
+        // Keep exactly one tab selected: its button highlighted and its panel
+        // shown. Jellyfin only deactivates the previously highlighted tab, so a
+        // selection it could not finish (a ?tab=N link opened before our button
+        // existed, a tab strip rebuilt after Back) leaves a custom panel showing
+        // under another tab, or a tab shown with no button highlighted.
+        reconcileSelection: function(tabsElem, view) {
+            if (!tabsElem || typeof tabsElem.selectedIndex !== 'function') {
+                return;
+            }
+
+            // The same lists, in the same order, that Jellyfin indexes into.
+            const buttons = Array.from(tabsElem.querySelectorAll('.emby-tab-button'));
+            const panels = Array.from(view.querySelectorAll('.tabContent'));
+            const highlighted = buttons.filter((el) => el.classList.contains('emby-tab-button-active'));
+            if (highlighted.length > 1) {
+                return;
+            }
+
+            // Jellyfin records the selection before it finishes applying it, and
+            // records a click only 120 ms after showing it. Trust the highlighted
+            // tab when its panel is shown (a click in progress), otherwise the
+            // recorded index when its panel is shown (an unfinished deep link).
+            const recorded = tabsElem.selectedIndex();
+            const shown = highlighted.length ? buttons.indexOf(highlighted[0]) : -1;
+            let selected = recorded;
+            if (shown !== -1 && shown !== recorded) {
+                if (panels[shown] && panels[shown].classList.contains('is-active')) {
+                    selected = shown;
+                } else if (!(panels[recorded] && panels[recorded].classList.contains('is-active'))) {
+                    selected = shown;
+                }
+            }
+
+            const button = buttons[selected];
+            const panel = panels[selected];
+            if (!button || !panel
+                || button.getAttribute('data-index') !== String(selected)
+                || panel.getAttribute('data-index') !== String(selected)) {
+                // The tab strip and panels do not line up (yet); leave them alone.
+                return;
+            }
+
+            const isOurs = button.id.indexOf('customTabButton_') === 0 && panel.id.indexOf('customTab_') === 0;
+            const strayPanels = panels.filter((el) => el !== panel && el.classList.contains('is-active'));
+            if (isOurs) {
+                if (!panel.classList.contains('is-active')) {
+                    panel.classList.add('is-active');
+                }
+                if (!button.classList.contains('emby-tab-button-active')) {
+                    highlighted.forEach((el) => el.classList.remove('emby-tab-button-active'));
+                    button.classList.add('emby-tab-button-active');
+                }
+                strayPanels.forEach((el) => el.classList.remove('is-active'));
+            } else {
+                // Not our tab: only take back what we own.
+                strayPanels.filter((el) => el.id.indexOf('customTab_') === 0)
+                    .forEach((el) => el.classList.remove('is-active'));
+                // If that leaves nothing shown (a custom panel had been left
+                // showing in place of the selected tab, #46), let Jellyfin apply
+                // its own selection again so that tab is shown and refreshed.
+                if (!panel.classList.contains('is-active') && !panels.some((el) => el.classList.contains('is-active'))) {
+                    tabsElem.selectedIndex(selected);
+                }
+            }
+        },
+
+        // A click is recorded 120 ms after it is shown, without a DOM change
+        // we could observe, so re-check when Jellyfin reports it.
+        watchTabs: function(tabsElem) {
+            if (!tabsElem || tabsElem === this.watchedTabs) {
+                return;
+            }
+            this.watchedTabs = tabsElem;
+            tabsElem.addEventListener('tabchange', () => this.scheduleSync());
         },
 
         // --- Jellyfin 12 Modern layout ---------------------------------------
@@ -169,67 +443,18 @@ if (typeof window.customTabsPlugin == 'undefined') {
             return !!this.getModernBar() || !!this.getModernDrawerList();
         },
 
-        initModern: function() {
-            if (typeof ApiClient === 'undefined') {
-                console.debug('CustomTabs: Waiting for ApiClient on modern layout...');
-                setTimeout(() => this.initModern(), 200);
-                return;
-            }
-
-            this.loadConfigs().then((configs) => {
-                if (!configs.length) {
-                    console.debug('CustomTabs: No tabs configured, nothing to add');
-                    return;
-                }
-
-                this.ensureModernStyles();
-                this.syncModern();
-                this.startModernObserver();
-            });
-        },
-
-        // React re-renders the header on navigation and discards anything we
-        // appended, so watch for it and put the tab back.
-        startModernObserver: function() {
-            if (this.modernObserver) {
-                return;
-            }
-
-            this.modernObserver = new MutationObserver(() => {
-                if (this.modernMutating) {
-                    return;
-                }
-                this.scheduleModernSync();
-            });
-
-            this.modernObserver.observe(document.body, { childList: true, subtree: true });
-            console.debug('CustomTabs: Watching for React re-renders');
-        },
-
-        scheduleModernSync: function() {
-            if (this.modernPending) {
-                return;
-            }
-
-            this.modernPending = true;
-            requestAnimationFrame(() => {
-                this.modernPending = false;
-                this.syncModern();
-            });
-        },
-
         syncModern: function() {
+            if (this.isHomeHash()) {
+                this.refreshOnVisit();
+            }
             if (!this.configs || !this.configs.length) {
+                this.removeModernTabs();
                 return;
             }
 
-            this.modernMutating = true;
-            try {
-                this.ensureModernTabs();
-                this.renderModernContent();
-            } finally {
-                this.modernMutating = false;
-            }
+            this.ensureModernStyles();
+            this.ensureModernTabs();
+            this.renderModernContent();
         },
 
         ensureModernStyles: function() {
@@ -240,9 +465,18 @@ if (typeof window.customTabsPlugin == 'undefined') {
             const style = document.createElement('style');
             style.id = 'customTabsModernStyles';
             style.textContent = '[id^="customTabButton_"][aria-current="page"]{background-color:rgba(255,255,255,.12);}'
-                + '[id^="customTab_"]{min-height:calc(100vh - 48px);}'
-                + 'main.customTabActive > *:not([id^="customTab_"]){display:none !important;}';
+                + 'main > [data-custom-tab]{min-height:calc(100vh - 48px);}'
+                + 'main.customTabActive > *:not([data-custom-tab]){display:none !important;}';
             document.head.appendChild(style);
+        },
+
+        // Drop every header link, drawer item and content block we added, so
+        // the next sync rebuilds them from the current tab list.
+        removeModernTabs: function() {
+            document.querySelectorAll('a[id^="customTabButton_"]').forEach((el) => el.remove());
+            document.querySelectorAll('[id^="customTabDrawerButton_"]').forEach((el) => (el.closest('li') || el).remove());
+            document.querySelectorAll('main > [data-custom-tab]').forEach((el) => el.remove());
+            document.querySelector('main')?.classList.remove('customTabActive');
         },
 
         ensureModernTabs: function() {
@@ -256,7 +490,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
                     const template = Array.from(bar.children).find((el) => el.tagName === 'A'
                         && (el.getAttribute('href') || '').indexOf('#/home?tab=') === 0)
-                        || Array.from(bar.children).find((el) => el.tagName === 'A');
+                        || Array.from(bar.children).find((el) => el.tagName === 'A' && el.id.indexOf('customTabButton_') !== 0);
 
                     if (!template) {
                         return;
@@ -277,11 +511,14 @@ if (typeof window.customTabsPlugin == 'undefined') {
                         return;
                     }
 
+                    // Only a drawer that links to Home tabs is the navigation
+                    // drawer; any other MUI drawer (Dashboard, settings) is not.
                     const items = Array.from(list.children).filter((el) => el.tagName === 'LI');
                     const template = items.find((el) => {
                         const link = el.querySelector('a');
-                        return link && (link.getAttribute('href') || '').indexOf('#/home?tab=') === 0;
-                    }) || items[items.length - 1];
+                        return link && link.id.indexOf('customTabDrawerButton_') !== 0
+                            && (link.getAttribute('href') || '').indexOf('#/home?tab=') === 0;
+                    });
 
                     if (!template) {
                         return;
@@ -359,6 +596,9 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // Tab 0 is Home and tab 1 is Favourites, so custom tabs start at 2.
         // React renders nothing for those, which leaves <main> free for us.
         getModernTabIndex: function() {
+            if (!this.isHomeHash()) {
+                return null;
+            }
             const match = /#\/home(?:\.html)?\?(?:.*&)?tab=(\d+)/.exec(window.location.hash);
             if (!match) {
                 return null;
@@ -375,7 +615,9 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
 
             const index = this.getModernTabIndex();
-            const existing = main.querySelector('[id^="customTab_"]');
+            // Only our own direct child: anything else with a customTab_ ID in
+            // <main> belongs to the hidden legacy Home view.
+            const existing = main.querySelector(':scope > [data-custom-tab]');
 
             if (index === null) {
                 if (existing) {
@@ -391,7 +633,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
             main.classList.add('customTabActive');
 
             const wantedId = `customTab_${index}`;
-            if (existing && existing.id === wantedId) {
+            const html = this.configs[index].ContentHtml || '';
+            if (existing && existing.id === wantedId && this.renderedTabs.get(existing) === html) {
                 this.setModernSelected(index);
                 return;
             }
@@ -402,68 +645,24 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
             const content = document.createElement('div');
             content.id = wantedId;
+            content.setAttribute('data-custom-tab', '');
             content.setAttribute('data-index', index + 2);
-            this.setInnerHTMLWithScripts(content, this.configs[index].ContentHtml || '');
+            this.setInnerHTMLWithScripts(content, html);
+            this.renderedTabs.set(content, html);
             main.appendChild(content);
             this.setModernSelected(index);
             console.debug(`CustomTabs: Rendered ${wantedId} into main`);
         },
 
         setModernSelected: function(index) {
-            document.querySelectorAll('[id^="customTabButton_"], [id^="customTabDrawerButton_"]').forEach((link) => {
+            document.querySelectorAll('a[id^="customTabButton_"], [id^="customTabDrawerButton_"]').forEach((link) => {
                 const own = parseInt(link.id.replace(/\D+/g, ''), 10);
                 if (index !== null && own === index) {
-                    link.setAttribute('aria-current', 'page');
-                } else {
+                    if (link.getAttribute('aria-current') !== 'page') link.setAttribute('aria-current', 'page');
+                } else if (link.hasAttribute('aria-current')) {
                     link.removeAttribute('aria-current');
                 }
             });
-        },
-
-        // Render content into tab divs, properly executing <script> tags
-        renderTabContent: function() {
-            if (!this.tabConfigs) return;
-
-            Object.keys(this.tabConfigs).forEach((tabContentId) => {
-                let tabDiv = document.getElementById(tabContentId);
-                if (!tabDiv) {
-                    tabDiv = this.ensureContentDiv(tabContentId);
-                    if (!tabDiv) return;
-                }
-
-                // Navigation can replace a panel while reusing its ID.
-                if (this.renderedTabs.has(tabDiv)) return;
-
-                const config = this.tabConfigs[tabContentId];
-                this.setInnerHTMLWithScripts(tabDiv, config.ContentHtml || '');
-                this.renderedTabs.add(tabDiv);
-                console.debug(`CustomTabs: Rendered content for ${tabContentId}`);
-            });
-        },
-
-        // If the serve-time-injected content div is missing (e.g. browser
-        // cached an old home-html chunk), create it on the fly.
-        ensureContentDiv: function(tabContentId) {
-            const index = parseInt(tabContentId.replace('customTab_', ''), 10);
-            const contentDiv = document.createElement('div');
-            contentDiv.id = tabContentId;
-            contentDiv.setAttribute('data-index', index + 2);
-
-            const anchor = document.getElementById('favoritesTab');
-            if (anchor && anchor.parentNode) {
-                anchor.parentNode.insertBefore(contentDiv, anchor.nextSibling);
-                console.debug(`CustomTabs: Created missing content div ${tabContentId} after favoritesTab`);
-                return contentDiv;
-            }
-
-            const slider = document.querySelector('.emby-tabs-slider');
-            const page = slider ? slider.closest('.page') : null;
-            if (page) {
-                page.appendChild(contentDiv);
-                console.debug(`CustomTabs: Created missing content div ${tabContentId} (fallback to page)`);
-                return contentDiv;
-            }
-            return null;
         },
 
         // Set innerHTML but properly execute <script> tags
@@ -497,63 +696,31 @@ if (typeof window.customTabsPlugin == 'undefined') {
         window.customTabsPlugin.init();
     }
 
-    // A single handler for all navigation-style events
-    const handleNavigation = () => {
-        console.debug('CustomTabs: Navigation detected, re-initializing after delay');
-        // Delay helps ensure the DOM has settled after navigation
-        setTimeout(() => {
-            window.customTabsPlugin.init();
-        }, 800);
-    };
-
-    // Standard browser navigation (back/forward buttons)
-    window.addEventListener("popstate", handleNavigation);
-
-    // The modern layout routes through the hash, so react to it immediately
-    // rather than waiting for the delayed handler above.
-    window.addEventListener("hashchange", () => {
-        if (window.customTabsPlugin.isModernLayout()) {
-            window.customTabsPlugin.syncModern();
+    // Every way Jellyfin navigates ends in a re-check. The page observer
+    // catches the DOM changes; these catch navigations that change nothing in
+    // the DOM by themselves (a hash change between custom tabs, Back/Forward,
+    // returning to the browser tab).
+    const resync = () => window.customTabsPlugin.init();
+    window.addEventListener("popstate", resync);
+    window.addEventListener("hashchange", resync);
+    window.addEventListener("pageshow", resync);
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+            resync();
         }
     });
 
-    // Mobile-specific events that can signify a page change
-    window.addEventListener("pageshow", handleNavigation);
-    window.addEventListener("focus", handleNavigation);
-
-    // Monkey-patch history API to detect navigation
     const originalPushState = history.pushState;
     history.pushState = function() {
         originalPushState.apply(history, arguments);
-        handleNavigation();
+        resync();
     };
 
     const originalReplaceState = history.replaceState;
     history.replaceState = function() {
         originalReplaceState.apply(history, arguments);
-        handleNavigation();
+        resync();
     };
-
-    // Handle tab visibility changes (e.g., user switches to another tab and back)
-    document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) {
-            console.debug('CustomTabs: Page became visible, checking for tabs');
-            setTimeout(() => window.customTabsPlugin.init(), 300);
-        }
-    });
-
-    // Handle touch events which can also trigger navigation on mobile
-    let touchNavigation = false;
-    document.addEventListener("touchstart", () => {
-        touchNavigation = true;
-    });
-
-    document.addEventListener("touchend", () => {
-        if (touchNavigation) {
-            setTimeout(() => window.customTabsPlugin.init(), 1000);
-            touchNavigation = false;
-        }
-    });
 
     console.log('CustomTabs: Plugin setup complete');
 }
