@@ -66,6 +66,16 @@
                 const wrapper = view.querySelector('#configurationWrapper');
                 const template = view.querySelector('#templateCustomTab');
                 const form = view.querySelector('.customTabsConfigurationForm');
+                const btnAdd = view.querySelector('#btnAddCustomTab');
+                const btnSave = view.querySelector('#saveConfig');
+
+                // Until the saved tabs are on the form, adding or saving would
+                // replace them with whatever the form holds (nothing).
+                function setEnabled(enabled) {
+                    btnAdd.disabled = !enabled;
+                    btnSave.disabled = !enabled;
+                }
+                setEnabled(false);
 
                 function addRow(tabConfig) {
                     const row = template.content.cloneNode(true);
@@ -94,6 +104,7 @@
                             // Re-showing the page must not append the tabs a second time.
                             wrapper.innerHTML = '';
                             (config.Tabs || []).forEach(addRow);
+                            setEnabled(true);
                         })
                         .catch(function (error) {
                             console.error(error);
@@ -111,6 +122,9 @@
 
                 function saveConfig(e) {
                     e.preventDefault();
+                    if (btnSave.disabled) {
+                        return;
+                    }
                     saving = saving.then(save, save);
                 }
 
@@ -152,7 +166,7 @@
                         });
                 }
 
-                view.querySelector('#btnAddCustomTab').addEventListener('click', function () {
+                btnAdd.addEventListener('click', function () {
                     edits++;
                     addRow({ Title: 'New Tab', ContentHtml: '' });
                 });
