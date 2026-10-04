@@ -464,8 +464,16 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
             const button = buttons[selected];
             const panel = panels[selected];
-            if (!button || !panel
-                || button.getAttribute('data-index') !== String(selected)
+            if (!button || !panel) {
+                // The selected tab is gone (removed while it was open). If that
+                // left nothing shown, show Home rather than a blank page.
+                if (!highlighted.length && !panels.some((el) => el.classList.contains('is-active'))
+                    && buttons[0] && panels[0]) {
+                    tabsElem.selectedIndex(0);
+                }
+                return;
+            }
+            if (button.getAttribute('data-index') !== String(selected)
                 || panel.getAttribute('data-index') !== String(selected)) {
                 // The tab strip and panels do not line up (yet); leave them alone.
                 return;
