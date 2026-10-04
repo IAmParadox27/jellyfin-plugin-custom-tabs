@@ -35,15 +35,12 @@
         <fieldset class="verticalSection-extrabottompadding" data-id="tab-config">
             <input type="hidden" data-id="hiddenSectionId" />
             <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="templateDisplayText">Display Text</label>
-                <label class="inputLabel inputLabelUnfocused" for="templateDisplayText"></label>
-                <input id="templateDisplayText" data-id="txtDisplayText" type="text" is="emby-input" min="0" class="emby-input">
+                <input data-id="txtDisplayText" type="text" is="emby-input" label="Display Text">
                 <div class="fieldDescription">The title of the tab.</div>
             </div>
             <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent">Html Content</label>
-                <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent"></label>
-                <textarea style="display:block;" class="emby-textarea emby-input" id="templateHtmlContent" data-id="templateHtmlContent">
+                <label class="inputLabel inputLabelUnfocused">Html Content</label>
+                <textarea style="display:block;" class="emby-textarea emby-input" data-id="templateHtmlContent">
                 </textarea>
                 <div class="fieldDescription">The html that should be displayed when this tab is shown.</div>
             </div>
@@ -53,35 +50,59 @@
         </fieldset>
     </template>
     <script type="text/javascript">
-        if (typeof CustomTabsConfig == 'undefined') {
-            
-            const CustomTabsConfig = {
-                pluginId: "fbacd0b6-fd46-4a05-b0a4-2045d6a135b0",
-                configurationWrapper: document.querySelector("#configurationWrapper"),
+        (function () {
+            // Jellyfin can keep an earlier instance of this page in the DOM, so
+            // everything is looked up inside the page this script belongs to, and
+            // each page instance is wired up exactly once.
+            const page = document.currentScript ? document.currentScript.closest('#customTabsConfigurationPage') : null;
+            const pluginId = "fbacd0b6-fd46-4a05-b0a4-2045d6a135b0";
 
-                templateCustomTab: document.querySelector("#templateCustomTab"),
-                
-                btnSave: document.querySelector("#saveConfig"),
-                btnAddCustomTab: document.querySelector("#btnAddCustomTab"),
+            function setup(view) {
+                if (!view || view.dataset.customTabsReady) {
+                    return;
+                }
+                view.dataset.customTabsReady = 'true';
 
-                saveConfig: function (e) {
+                const wrapper = view.querySelector('#configurationWrapper');
+                const template = view.querySelector('#templateCustomTab');
+                const form = view.querySelector('.customTabsConfigurationForm');
+
+                function addRow(tabConfig) {
+                    const row = template.content.cloneNode(true);
+                    row.querySelector('[data-id=txtDisplayText]').value = tabConfig.Title;
+                    row.querySelector('[data-id=templateHtmlContent]').value = tabConfig.ContentHtml;
+                    wrapper.appendChild(row);
+                }
+
+                function loadConfig() {
+                    Dashboard.showLoadingMsg();
+                    window.ApiClient.getPluginConfiguration(pluginId)
+                        .then(function (config) {
+                            // Re-showing the page must not append the tabs a second time.
+                            wrapper.innerHTML = '';
+                            (config.Tabs || []).forEach(addRow);
+                        })
+                        .catch(function (error) {
+                            console.error(error);
+                        })
+                        .finally(function () {
+                            Dashboard.hideLoadingMsg();
+                        });
+                }
+
+                function saveConfig(e) {
                     e.preventDefault();
                     Dashboard.showLoadingMsg();
                     const config = {
-                        Tabs: []
+                        Tabs: Array.from(wrapper.querySelectorAll('[data-id=tab-config]')).map(function (row) {
+                            return {
+                                Title: row.querySelector('[data-id=txtDisplayText]').value,
+                                ContentHtml: row.querySelector('[data-id=templateHtmlContent]').value
+                            };
+                        })
                     };
-                    
-                    // loop over tab configs
-                    document.querySelectorAll("[data-id=tab-config]").forEach(tabConfig => {
-                        const tab = {
-                            Title: tabConfig.querySelector("[data-id=txtDisplayText]").value,
-                            ContentHtml: tabConfig.querySelector("[data-id=templateHtmlContent]").value,
-                        };
-                        
-                        config.Tabs.push(tab);
-                    });
 
-                    window.ApiClient.updatePluginConfiguration(CustomTabsConfig.pluginId, config)
+                    window.ApiClient.updatePluginConfiguration(pluginId, config)
                         .then(Dashboard.processPluginConfigurationUpdateResult)
                         .catch(function (error) {
                             console.error(error);
@@ -89,59 +110,36 @@
                         .finally(function () {
                             Dashboard.hideLoadingMsg();
                         });
-                },
-                loadConfig: function () {
-                    Dashboard.showLoadingMsg();
-                    window.ApiClient.getPluginConfiguration(CustomTabsConfig.pluginId)
-                        .then(function (config) {
-                            for (var i = 0; i < config.Tabs.length; ++i) {
-                                CustomTabsConfig.addCustomTabConfig(config.Tabs[i]);
-                            }
-                        })
-                        .catch(function (error) {
-                            console.error(error);
-                        })
-                        .finally(function () {
-                            Dashboard.hideLoadingMsg();
-                        });
-                },
-                init: function () {
-                    CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
-                    CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
-                    CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
-                        if (event.target.getAttribute('data-id') === "templateRemoveTab") {
-                            const el = event.target.closest("[data-id=tab-config]");
-                            CustomTabsConfig.removeTab(el);
-                        }
-                    });
-                    CustomTabsConfig.loadConfig();
-                },
-                addCustomTabNew: function() {
-                    const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
+                }
 
-                    template.querySelector('[data-id=txtDisplayText]').value = 'New Tab';
-                    template.querySelector('[data-id=templateHtmlContent]').value = '';
+                view.querySelector('#btnAddCustomTab').addEventListener('click', function () {
+                    addRow({ Title: 'New Tab', ContentHtml: '' });
+                });
+                form.addEventListener('submit', saveConfig);
+                wrapper.addEventListener('click', function (event) {
+                    // The click can land on the button's inner <span>.
+                    const remove = event.target.closest('[data-id=templateRemoveTab]');
+                    if (remove) {
+                        remove.closest('[data-id=tab-config]').remove();
+                    }
+                });
 
-                    const el = CustomTabsConfig.configurationWrapper.appendChild(template);
-                },
-                addCustomTabConfig: function(tabConfig) {
-                    const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
-                    //template.querySelector('[data-id=hiddenSectionId]').value = tabConfig.SectionId;
-                    template.querySelector('[data-id=txtDisplayText]').value = tabConfig.Title;
-                    template.querySelector('[data-id=templateHtmlContent]').value = tabConfig.ContentHtml;
-
-                    const el = CustomTabsConfig.configurationWrapper.appendChild(template);
-                },
-                removeTab: function(elem) {
-                    elem.remove();
+                view.addEventListener('pageshow', loadConfig);
+                // The script can run after this page's own pageshow has fired.
+                if (view.isConnected && !view.classList.contains('hide')) {
+                    loadConfig();
                 }
             }
 
-            // view.addEventListener("viewshow", function (e) {
-            document.querySelector('#customTabsConfigurationPage').addEventListener("pageshow", function () {
-                CustomTabsConfig.init();
-            });
-        }
+            if (page) {
+                setup(page);
+            } else {
+                // No currentScript (the page was injected without it): fall back to
+                // the most recently added instance of the page.
+                const pages = document.querySelectorAll('#customTabsConfigurationPage');
+                setup(pages[pages.length - 1]);
+            }
+        })();
     </script>
 </div>
 </body>
