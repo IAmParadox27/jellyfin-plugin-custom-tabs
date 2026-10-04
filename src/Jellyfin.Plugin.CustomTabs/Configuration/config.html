@@ -77,6 +77,14 @@
                 }
                 setEnabled(false);
 
+                // Same shape as the ids the server assigns (8 hex characters). A new
+                // tab gets its id here, so the first save already stores it.
+                function newTabId() {
+                    const bytes = new Uint8Array(4);
+                    window.crypto.getRandomValues(bytes);
+                    return Array.from(bytes, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+                }
+
                 function addRow(tabConfig) {
                     const row = template.content.cloneNode(true);
                     row.querySelector('[data-id=tabId]').value = tabConfig.Id || '';
@@ -116,8 +124,7 @@
                     return loading;
                 }
 
-                // Saves run one after another, so a quick second save waits for
-                // the ids the first one got.
+                // Saves run one after another.
                 let saving = Promise.resolve();
 
                 function saveConfig(e) {
@@ -143,21 +150,7 @@
                     };
 
                     return window.ApiClient.updatePluginConfiguration(pluginId, config)
-                        .then(function (result) {
-                            Dashboard.processPluginConfigurationUpdateResult(result);
-                            return window.ApiClient.getPluginConfiguration(pluginId);
-                        })
-                        .then(function (saved) {
-                            // Give the rows just saved the ids the server assigned, in
-                            // place, without touching anything edited since.
-                            const tabs = (saved && saved.Tabs) || [];
-                            rows.forEach(function (row, i) {
-                                const idInput = row.querySelector('[data-id=tabId]');
-                                if (!idInput.value && tabs[i] && tabs[i].Id) {
-                                    idInput.value = tabs[i].Id;
-                                }
-                            });
-                        })
+                        .then(Dashboard.processPluginConfigurationUpdateResult)
                         .catch(function (error) {
                             console.error(error);
                         })
@@ -168,7 +161,7 @@
 
                 btnAdd.addEventListener('click', function () {
                     edits++;
-                    addRow({ Title: 'New Tab', ContentHtml: '' });
+                    addRow({ Id: newTabId(), Title: 'New Tab', ContentHtml: '' });
                 });
                 wrapper.addEventListener('input', function () {
                     edits++;
