@@ -31,6 +31,7 @@ namespace Jellyfin.Plugin.CustomTabs.Services
         public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
         {
             m_logger.LogInformation($"CustomTabs Startup. Registering file transformations.");
+            TransformationPatches.Logger = m_logger;
             
             List<JObject> payloads = new List<JObject>();
 
@@ -70,6 +71,14 @@ namespace Jellyfin.Plugin.CustomTabs.Services
                         pluginInterfaceType.GetMethod("RegisterTransformation")?.Invoke(null, new object?[] { payload });
                     }
                 }
+                else
+                {
+                    m_logger.LogWarning("CustomTabs: File Transformation is loaded but has no PluginInterface; tabs cannot be injected.");
+                }
+            }
+            else
+            {
+                m_logger.LogWarning("CustomTabs: the File Transformation plugin is not installed or not loaded; tabs cannot be injected.");
             }
 
             return Task.CompletedTask;
