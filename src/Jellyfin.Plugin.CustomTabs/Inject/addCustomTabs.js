@@ -13,9 +13,33 @@ if (typeof window.customTabsPlugin == 'undefined') {
         modernPending: false,
         modernMutating: false,
 
+        // Tab configs are user content and must never be rendered for guests
+        isAuthenticated: function() {
+            if (typeof ApiClient === 'undefined') {
+                return false;
+            }
+
+            if (typeof ApiClient.getCurrentUserId === 'function') {
+                return !!ApiClient.getCurrentUserId();
+            }
+
+            return typeof ApiClient.accessToken === 'function' && !!ApiClient.accessToken();
+        },
+
         // Kicks off the process
         init: function() {
             console.log('CustomTabs: Initializing plugin');
+
+            if (typeof ApiClient === 'undefined') {
+                setTimeout(() => this.init(), 200);
+                return;
+            }
+
+            if (!this.isAuthenticated()) {
+                console.debug('CustomTabs: No authenticated user, skipping');
+                this.removeInjectedTabs();
+                return;
+            }
 
             // Jellyfin 12's Modern layout renders its own React header and hides the
             // legacy .skinHeader tab bar, so the legacy injection never becomes visible.
@@ -52,8 +76,30 @@ if (typeof window.customTabsPlugin == 'undefined') {
             return this.configPromise;
         },
 
+        // Drops every tab the plugin added, e.g. after the user logs out
+        removeInjectedTabs: function() {
+            document.querySelectorAll('[id^="customTabButton_"], [id^="customTabDrawerButton_"]')
+                .forEach((element) => element.remove());
+
+            document.querySelectorAll('[id^="customTab_"]')
+                .forEach((element) => element.remove());
+
+            const main = document.querySelector('main');
+            if (main) {
+                main.classList.remove('customTabActive');
+            }
+
+            this.tabConfigs = {};
+            this.renderedTabs = new WeakSet();
+        },
+
         // Waits for the necessary page elements to be ready before acting
         waitForUI: function() {
+            if (!this.isAuthenticated()) {
+                console.debug('CustomTabs: No authenticated user, skipping UI check');
+                return;
+            }
+
             // Check if we are on the home page by looking at the URL hash
             const hash = window.location.hash;
             if (hash !== '' && hash !== '#/home' && hash !== '#/home.html' && !hash.includes('#/home?') && !hash.includes('#/home.html?')) {
@@ -74,6 +120,11 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // Fetches config and creates the tab elements in the DOM
         createCustomTabs: function() {
             console.debug('CustomTabs: Starting tab creation process');
+
+            if (!this.isAuthenticated()) {
+                console.debug('CustomTabs: No authenticated user, skipping tab creation');
+                return;
+            }
 
             const tabsSlider = document.querySelector('.emby-tabs-slider');
             if (!tabsSlider) {
@@ -176,6 +227,12 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 return;
             }
 
+            if (!this.isAuthenticated()) {
+                console.debug('CustomTabs: No authenticated user, skipping modern tabs');
+                this.removeInjectedTabs();
+                return;
+            }
+
             this.loadConfigs().then((configs) => {
                 if (!configs.length) {
                     console.debug('CustomTabs: No tabs configured, nothing to add');
@@ -218,7 +275,23 @@ if (typeof window.customTabsPlugin == 'undefined') {
             });
         },
 
+        stopModernObserver: function() {
+            if (!this.modernObserver) {
+                return;
+            }
+
+            this.modernObserver.disconnect();
+            this.modernObserver = null;
+            console.debug('CustomTabs: Stopped watching for React re-renders');
+        },
+
         syncModern: function() {
+            if (!this.isAuthenticated()) {
+                this.stopModernObserver();
+                this.removeInjectedTabs();
+                return;
+            }
+
             if (!this.configs || !this.configs.length) {
                 return;
             }
@@ -255,8 +328,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     }
 
                     const template = Array.from(bar.children).find((el) => el.tagName === 'A'
-                        && (el.getAttribute('href') || '').indexOf('#/home?tab=') === 0)
-                        || Array.from(bar.children).find((el) => el.tagName === 'A');
+                        && (el.getAttribute('href') || '').indexOf('#/home?tab=') === 0);
 
                     if (!template) {
                         return;
@@ -281,7 +353,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     const template = items.find((el) => {
                         const link = el.querySelector('a');
                         return link && (link.getAttribute('href') || '').indexOf('#/home?tab=') === 0;
-                    }) || items[items.length - 1];
+                    });
 
                     if (!template) {
                         return;

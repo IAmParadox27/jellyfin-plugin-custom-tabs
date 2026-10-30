@@ -1,4 +1,5 @@
 ﻿using Jellyfin.Plugin.CustomTabs.Configuration;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jellyfin.Plugin.CustomTabs.Controller
@@ -7,6 +8,7 @@ namespace Jellyfin.Plugin.CustomTabs.Controller
     [Route("[controller]")]
     public class CustomTabsController : ControllerBase
     {
+        [Authorize]
         [HttpGet("Config")]
         public ActionResult<TabConfig[]> GetTabConfigs()
         {
