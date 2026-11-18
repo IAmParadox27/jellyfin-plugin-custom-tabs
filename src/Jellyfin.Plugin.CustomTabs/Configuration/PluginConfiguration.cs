@@ -12,5 +12,7 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         public string ContentHtml { get; set; } = string.Empty;
 
         public string Title { get; set; } = string.Empty;
+
+        public string Icon { get; set; } = string.Empty;
     }
 }

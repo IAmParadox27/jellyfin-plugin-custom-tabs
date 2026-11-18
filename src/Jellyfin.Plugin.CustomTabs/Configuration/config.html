@@ -41,6 +41,17 @@
                 <div class="fieldDescription">The title of the tab.</div>
             </div>
             <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused">Icon</label>
+                <input data-id="txtIcon" type="text" is="emby-input" class="emby-input" placeholder="e.g. live_tv">
+                <span class="material-icons" data-id="iconPreview" aria-hidden="true"></span>
+                <div class="fieldDescription">
+                    Optional. A Material Icons name from
+                    <a is="emby-linkbutton" class="button-link" href="https://fonts.google.com/icons?icon.set=Material+Icons" target="_blank">fonts.google.com/icons</a>,
+                    shown to the left of the tab name in the header and side menu
+                    (Jellyfin 12 modern layout only; ignored on 10.10 / 10.11). Leave empty for no icon.
+                </div>
+            </div>
+            <div class="inputContainer">
                 <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent">Html Content</label>
                 <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent"></label>
                 <textarea style="display:block;" class="emby-textarea emby-input" id="templateHtmlContent" data-id="templateHtmlContent">
@@ -64,6 +75,8 @@
                 btnSave: document.querySelector("#saveConfig"),
                 btnAddCustomTab: document.querySelector("#btnAddCustomTab"),
 
+                listenersAttached: false,
+
                 saveConfig: function (e) {
                     e.preventDefault();
                     Dashboard.showLoadingMsg();
@@ -76,6 +89,7 @@
                         const tab = {
                             Title: tabConfig.querySelector("[data-id=txtDisplayText]").value,
                             ContentHtml: tabConfig.querySelector("[data-id=templateHtmlContent]").value,
+                            Icon: tabConfig.querySelector("[data-id=txtIcon]").value.trim().toLowerCase(),
                         };
                         
                         config.Tabs.push(tab);
@@ -94,6 +108,7 @@
                     Dashboard.showLoadingMsg();
                     window.ApiClient.getPluginConfiguration(CustomTabsConfig.pluginId)
                         .then(function (config) {
+                            CustomTabsConfig.configurationWrapper.replaceChildren();
                             for (var i = 0; i < config.Tabs.length; ++i) {
                                 CustomTabsConfig.addCustomTabConfig(config.Tabs[i]);
                             }
@@ -106,14 +121,23 @@
                         });
                 },
                 init: function () {
-                    CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
-                    CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
-                    CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
-                        if (event.target.getAttribute('data-id') === "templateRemoveTab") {
-                            const el = event.target.closest("[data-id=tab-config]");
-                            CustomTabsConfig.removeTab(el);
-                        }
-                    });
+                    // pageshow fires every time the page is shown again, so only attach once
+                    if (!CustomTabsConfig.listenersAttached) {
+                        CustomTabsConfig.listenersAttached = true;
+                        CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
+                        CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
+                        CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
+                            if (event.target.closest("[data-id=templateRemoveTab]")) {
+                                const el = event.target.closest("[data-id=tab-config]");
+                                CustomTabsConfig.removeTab(el);
+                            }
+                        });
+                        CustomTabsConfig.configurationWrapper.addEventListener("input", (event) => {
+                            if (event.target.closest("[data-id=txtIcon]")) {
+                                CustomTabsConfig.updateIconPreview(event.target.closest("[data-id=tab-config]"));
+                            }
+                        });
+                    }
                     CustomTabsConfig.loadConfig();
                 },
                 addCustomTabNew: function() {
@@ -121,6 +145,7 @@
 
                     template.querySelector('[data-id=txtDisplayText]').value = 'New Tab';
                     template.querySelector('[data-id=templateHtmlContent]').value = '';
+                    template.querySelector('[data-id=txtIcon]').value = '';
 
                     const el = CustomTabsConfig.configurationWrapper.appendChild(template);
                 },
@@ -129,8 +154,15 @@
                     //template.querySelector('[data-id=hiddenSectionId]').value = tabConfig.SectionId;
                     template.querySelector('[data-id=txtDisplayText]').value = tabConfig.Title;
                     template.querySelector('[data-id=templateHtmlContent]').value = tabConfig.ContentHtml;
+                    template.querySelector('[data-id=txtIcon]').value = tabConfig.Icon || '';
+                    CustomTabsConfig.updateIconPreview(template);
 
                     const el = CustomTabsConfig.configurationWrapper.appendChild(template);
+                },
+                updateIconPreview: function(tabConfig) {
+                    const name = tabConfig.querySelector('[data-id=txtIcon]').value.trim().toLowerCase();
+                    // only render names the client will accept, never arbitrary text
+                    tabConfig.querySelector('[data-id=iconPreview]').textContent = /^[a-z0-9_]+$/.test(name) ? name : '';
                 },
                 removeTab: function(elem) {
                     elem.remove();
