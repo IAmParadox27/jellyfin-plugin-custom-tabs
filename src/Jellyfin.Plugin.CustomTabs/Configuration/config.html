@@ -42,8 +42,10 @@
             </div>
             <div class="inputContainer">
                 <label class="inputLabel inputLabelUnfocused">Icon</label>
-                <input data-id="txtIcon" type="text" is="emby-input" class="emby-input" placeholder="e.g. live_tv">
-                <span class="material-icons" data-id="iconPreview" aria-hidden="true"></span>
+                <div style="display: flex; align-items: center;">
+                    <input data-id="txtIcon" type="text" is="emby-input" class="emby-input" placeholder="e.g. live_tv" style="flex: 1;">
+                    <span class="material-icons" data-id="iconPreview" aria-hidden="true" style="flex: none; width: 24px; overflow: hidden; margin-left: 0.5em;"></span>
+                </div>
                 <div class="fieldDescription">
                     Optional. A Material Icons name from
                     <a is="emby-linkbutton" class="button-link" href="https://fonts.google.com/icons?icon.set=Material+Icons" target="_blank">fonts.google.com/icons</a>,
