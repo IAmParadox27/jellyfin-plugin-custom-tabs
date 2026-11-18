@@ -75,5 +75,9 @@ The likelihood is the plugin hasn't been updated for that version of Jellyfin an
 ```
 <i><strong>Note:</strong> With the above `<style>` tags this will be applied to Jellyfin as a whole, to only affect the tab you're working on, you can surround with `#customTab_{index} { ... }` where `{index}` starts at 0 and counts up for every custom tab added.</i>
 
+<strong>Icon (optional):</strong> A Material Icons name from <a href="https://fonts.google.com/icons?icon.set=Material+Icons">fonts.google.com/icons</a>, e.g. `live_tv`. It's shown to the left of the tab name in the header and side menu.
+
+<i><strong>Note:</strong> Icons are only shown in the Jellyfin 12 modern layout. On 10.10 / 10.11 the setting is ignored and tabs stay text-only.</i>
+
 ## Issues
 If you find an issue with any of the sections or usage of the plugin, please open an issue on GitHub. Please make sure to check the closed issues in case your issue has already been resolved, and also make sure to check the other plugins available from me as another plugin may have experienced the same issue.

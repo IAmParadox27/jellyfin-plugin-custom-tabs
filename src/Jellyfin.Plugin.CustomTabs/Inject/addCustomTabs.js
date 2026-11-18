@@ -314,7 +314,9 @@ if (typeof window.customTabsPlugin == 'undefined') {
             style.id = 'customTabsModernStyles';
             style.textContent = '[id^="customTabButton_"][aria-current="page"]{background-color:rgba(255,255,255,.12);}'
                 + '[id^="customTab_"]{min-height:calc(100vh - 48px);}'
-                + 'main.customTabActive > *:not([id^="customTab_"]){display:none !important;}';
+                + 'main.customTabActive > *:not([id^="customTab_"]){display:none !important;}'
+                + '.MuiButton-startIcon > .customTabIcon{font-size:20px;}'
+                + '.MuiListItemIcon-root > .customTabIcon{font-size:1.5rem;}';
             document.head.appendChild(style);
         },
 
@@ -404,8 +406,64 @@ if (typeof window.customTabsPlugin == 'undefined') {
             link.removeAttribute('aria-current');
             this.setModernLabel(link, config.Title);
 
-            link.querySelectorAll('.MuiButton-startIcon, .MuiListItemIcon-root, svg')
-                .forEach((icon) => icon.remove());
+            const icon = this.createIcon(config.Icon);
+            const hasWrapper = !!link.querySelector('.MuiButton-startIcon, .MuiListItemIcon-root');
+
+            // Header: no icon → drop the wrapper so there is no empty gap.
+            link.querySelectorAll('.MuiButton-startIcon').forEach((wrapper) => {
+                if (!icon) {
+                    wrapper.remove();
+                    return;
+                }
+                wrapper.replaceChildren(icon.cloneNode(true));
+            });
+
+            // Drawer: always keep the wrapper (empty when no icon) so the label
+            // lines up with the native items, which all have an icon.
+            link.querySelectorAll('.MuiListItemIcon-root').forEach((wrapper) => {
+                if (icon) {
+                    wrapper.replaceChildren(icon.cloneNode(true));
+                } else {
+                    wrapper.replaceChildren();
+                }
+            });
+
+            // Any stray svg outside a wrapper
+            link.querySelectorAll('svg').forEach((svg) => svg.remove());
+
+            // If a future template has no icon wrapper, still show the icon
+            // rather than silently dropping it.
+            if (icon && !hasWrapper) {
+                this.insertFallbackIcon(link, icon);
+            }
+        },
+
+        // Admin input, so only allow names that can't be anything but a ligature
+        createIcon: function(name) {
+            if (!name || !/^[a-z0-9_]+$/.test(name)) {
+                return null;
+            }
+
+            const span = document.createElement('span');
+            span.className = 'material-icons customTabIcon';
+            span.setAttribute('aria-hidden', 'true');
+            span.textContent = name;
+            return span;
+        },
+
+        insertFallbackIcon: function(link, icon) {
+            icon.style.marginRight = '8px';
+
+            const label = Array.from(link.childNodes)
+                .find((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '')
+                || link.querySelector('.MuiListItemText-root');
+
+            if (label) {
+                label.parentNode.insertBefore(icon, label);
+            } else {
+                link.prepend(icon);
+            }
+            console.debug('CustomTabs: No icon wrapper in template, placed icon before label');
         },
 
         // The header button keeps its label in a trailing text node; the drawer
