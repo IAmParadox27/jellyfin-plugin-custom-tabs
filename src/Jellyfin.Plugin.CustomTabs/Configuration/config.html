@@ -77,8 +77,6 @@
                 btnSave: document.querySelector("#saveConfig"),
                 btnAddCustomTab: document.querySelector("#btnAddCustomTab"),
 
-                listenersAttached: false,
-
                 saveConfig: function (e) {
                     e.preventDefault();
                     Dashboard.showLoadingMsg();
@@ -110,7 +108,6 @@
                     Dashboard.showLoadingMsg();
                     window.ApiClient.getPluginConfiguration(CustomTabsConfig.pluginId)
                         .then(function (config) {
-                            CustomTabsConfig.configurationWrapper.replaceChildren();
                             for (var i = 0; i < config.Tabs.length; ++i) {
                                 CustomTabsConfig.addCustomTabConfig(config.Tabs[i]);
                             }
@@ -123,23 +120,19 @@
                         });
                 },
                 init: function () {
-                    // pageshow fires every time the page is shown again, so only attach once
-                    if (!CustomTabsConfig.listenersAttached) {
-                        CustomTabsConfig.listenersAttached = true;
-                        CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
-                        CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
-                        CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
-                            if (event.target.closest("[data-id=templateRemoveTab]")) {
-                                const el = event.target.closest("[data-id=tab-config]");
-                                CustomTabsConfig.removeTab(el);
-                            }
-                        });
-                        CustomTabsConfig.configurationWrapper.addEventListener("input", (event) => {
-                            if (event.target.closest("[data-id=txtIcon]")) {
-                                CustomTabsConfig.updateIconPreview(event.target.closest("[data-id=tab-config]"));
-                            }
-                        });
-                    }
+                    CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
+                    CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
+                    CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
+                        if (event.target.getAttribute('data-id') === "templateRemoveTab") {
+                            const el = event.target.closest("[data-id=tab-config]");
+                            CustomTabsConfig.removeTab(el);
+                        }
+                    });
+                    CustomTabsConfig.configurationWrapper.addEventListener("input", (event) => {
+                        if (event.target.closest("[data-id=txtIcon]")) {
+                            CustomTabsConfig.updateIconPreview(event.target.closest("[data-id=tab-config]"));
+                        }
+                    });
                     CustomTabsConfig.loadConfig();
                 },
                 addCustomTabNew: function() {
