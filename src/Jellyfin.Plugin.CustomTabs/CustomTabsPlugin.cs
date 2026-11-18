@@ -25,6 +25,7 @@ public class CustomTabsPlugin : BasePlugin<PluginConfiguration>, IHasPluginConfi
         yield return new PluginPageInfo
         {
             Name = Name,
+            EnableInMainMenu = true,
             EmbeddedResourcePath = $"{prefix}.Configuration.config.html"
         };
     }
