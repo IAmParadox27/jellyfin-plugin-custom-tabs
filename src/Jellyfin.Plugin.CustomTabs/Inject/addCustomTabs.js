@@ -316,7 +316,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 + '[id^="customTab_"]{min-height:calc(100vh - 48px);}'
                 + 'main.customTabActive > *:not([id^="customTab_"]){display:none !important;}'
                 + '.MuiButton-startIcon > .customTabIcon{font-size:20px;}'
-                + '.MuiListItemIcon-root > .customTabIcon{font-size:24px;}';
+                + '.MuiListItemIcon-root > .customTabIcon{font-size:1.5rem;}';
             document.head.appendChild(style);
         },
 
