@@ -388,35 +388,42 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
         headerIconsStorageKey: 'customTabs.headerIcons',
 
-        // The name a header icon is matched on: its aria-label or title, else
-        // a stable id, else the Material icon it shows. Plugins often add
-        // icons with only an id or an icon-font glyph and no label.
-        nativeButtonLabel: function(el) {
-            const labelled = el.matches('[aria-label], [title]') ? el : el.querySelector('[aria-label], [title]');
-            const label = labelled ? (labelled.getAttribute('aria-label') || labelled.getAttribute('title') || '').trim() : '';
-            if (label) {
-                return label;
-            }
+        // Every name a header icon can be matched on, best first: aria-label,
+        // title, a stable id, then the Material icon it shows. Plugins often
+        // add icons with only an id or an icon-font glyph, and some redraw
+        // their buttons with a different attribute set (e.g. the tooltip
+        // moving between title and aria-label), so matching tries them all.
+        nativeButtonNames: function(el) {
+            const names = [];
+            const add = (value) => {
+                const name = (value || '').trim();
+                if (name && names.indexOf(name) === -1) {
+                    names.push(name);
+                }
+            };
 
+            const nodes = [el].concat(Array.from(el.querySelectorAll('[aria-label], [title], [id]')));
+            nodes.forEach((node) => add(node.getAttribute('aria-label')));
+            nodes.forEach((node) => add(node.getAttribute('title')));
             // React and MUI generate ids like ":r3:" that change between loads
-            const withId = el.id ? el : el.querySelector('[id]');
-            if (withId && withId.id && withId.id.indexOf(':') === -1 && !this.isOurHeaderButton(withId)) {
-                return withId.id;
-            }
+            nodes.forEach((node) => {
+                if (node.id && node.id.indexOf(':') === -1 && !this.isOurHeaderButton(node)) {
+                    add(node.id);
+                }
+            });
 
             const glyph = el.querySelector('.material-icons, .material-icons-outlined, .material-symbols-outlined, .material-symbols-rounded');
             if (glyph) {
-                const text = glyph.textContent.trim();
-                if (text) {
-                    return text;
-                }
-                const name = Array.from(glyph.classList).find((c) => c.indexOf('material-') !== 0);
-                if (name) {
-                    return name;
-                }
+                add(glyph.textContent);
+                add(Array.from(glyph.classList).find((c) => c.indexOf('material-') !== 0));
             }
 
-            return '';
+            return names;
+        },
+
+        // The name shown on the settings page
+        nativeButtonLabel: function(el) {
+            return this.nativeButtonNames(el)[0] || '';
         },
 
         isOurHeaderButton: function(el) {
@@ -428,15 +435,25 @@ if (typeof window.customTabsPlugin == 'undefined') {
             return this.isOurHeaderButton(item) ? item : item.querySelector('[id^="customTabHeaderButton_"]');
         },
 
-        headerIconKey: function(item) {
+        // All keys an item can match in the saved order, best first
+        headerIconKeys: function(item) {
             const ours = this.ourHeaderButtonIn(item);
             if (ours) {
                 const config = this.configs && this.configs[parseInt(ours.id.replace(/\D+/g, ''), 10)];
-                return config && config.Id ? `custom:${config.Id}`.toLowerCase() : null;
+                return config && config.Id ? [`custom:${config.Id}`.toLowerCase()] : [];
             }
 
-            const label = this.nativeButtonLabel(item);
-            return label ? `stock:${this.normaliseLabel(label)}` : null;
+            return this.nativeButtonNames(item).map((name) => `stock:${this.normaliseLabel(name)}`);
+        },
+
+        headerIconRank: function(item, rank) {
+            const keys = this.headerIconKeys(item);
+            for (let i = 0; i < keys.length; i++) {
+                if (rank.has(keys[i])) {
+                    return rank.get(keys[i]);
+                }
+            }
+            return undefined;
         },
 
         recordHeaderIcons: function(items) {
@@ -500,8 +517,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 const unrankedOurs = [];
                 const unrankedNative = [];
                 items.forEach((item, position) => {
-                    const key = this.headerIconKey(item);
-                    const r = key ? rank.get(key) : undefined;
+                    const r = this.headerIconRank(item, rank);
                     if (r !== undefined) {
                         ranked.push({ item, r, position });
                     } else if (this.ourHeaderButtonIn(item)) {
@@ -531,6 +547,37 @@ if (typeof window.customTabsPlugin == 'undefined') {
             console.debug('CustomTabs: Reordered the header icons');
         },
 
+        // Run customTabsPlugin.debugHeader() in the browser console to see
+        // what the plugin makes of the header: each right-hand icon, the
+        // names it can be matched on, and its place in the saved order.
+        debugHeader: function() {
+            const rank = new Map((this.headerIconOrder || []).map((key, i) => [String(key).toLowerCase(), i]));
+            const group = this.getModernHeaderRightGroup();
+            const legacy = document.querySelector('.skinHeader .headerRight');
+            const items = group ? group.items : (legacy ? Array.from(legacy.children) : []);
+            const describe = (el) => el ? `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 3).join('.') : ''}` : '(none)';
+            const rows = items.map((item, i) => {
+                const r = this.headerIconRank(item, rank);
+                return {
+                    position: i + 1,
+                    names: this.headerIconKeys(item).join(', ') || '(no name)',
+                    savedPlace: r === undefined ? '(not in saved order)' : r + 1,
+                    element: describe(item),
+                    parent: describe(item.parentElement),
+                    visible: item.getClientRects().length > 0
+                };
+            });
+
+            console.log('CustomTabs header debug', {
+                layout: group ? 'modern' : (legacy ? 'legacy' : 'not found'),
+                tabBarFound: !!this.getModernBar(),
+                savedHeaderIconOrder: this.headerIconOrder,
+                recorded: (() => { try { return JSON.parse(localStorage.getItem(this.headerIconsStorageKey) || '[]'); } catch (e) { return 'unavailable'; } })()
+            });
+            console.table(rows);
+            return rows;
+        },
+
         // The clickable elements on the right of the modern header (after the
         // tab links, or after the menu button when the links are collapsed
         // into the drawer), whatever they are: MUI IconButtons, plain buttons
@@ -549,21 +596,26 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 .filter((el) => !(el.parentElement && el.parentElement.closest(selector)));
             let controls = allControls;
 
+            // The left side of the toolbar is the menu button, the back button
+            // (shown on pages other than home), the server logo / home link
+            // and the tab links. The right group is every control after the
+            // last of those, whether or not the tab links are showing (they
+            // collapse into the drawer on narrow screens, and some pages
+            // render the header without them).
             const bar = this.getModernBar();
-            if (bar) {
-                controls = controls.filter((el) => !bar.contains(el)
-                    && (bar.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING));
-            } else {
-                // Tab links collapsed into the drawer (narrow screens): the
-                // right group is whatever follows the menu button. Other
-                // controls can come before it (e.g. a hidden back button), so
-                // find it rather than assuming it is first.
-                const menuIndex = controls.findIndex((el) => this.isHeaderMenuButton(el));
-                controls = controls.slice(menuIndex >= 0 ? menuIndex + 1 : 1);
-            }
+            const isLeftControl = (el) => this.isHeaderMenuButton(el) || this.isHeaderBackButton(el)
+                || this.isHomeLink(el) || (bar && bar.contains(el));
+            let leftEnd = -1;
+            allControls.forEach((el, i) => {
+                if (isLeftControl(el)) {
+                    leftEnd = i;
+                }
+            });
 
-            // Never treat the menu button or the home/logo link as an icon
-            controls = controls.filter((el) => !this.isHeaderMenuButton(el) && !this.isHomeLink(el));
+            controls = leftEnd >= 0 ? allControls.slice(leftEnd + 1) : allControls.slice(1);
+            if (bar) {
+                controls = controls.filter((el) => bar.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+            }
 
             if (!controls.length) {
                 return null;
@@ -672,8 +724,12 @@ if (typeof window.customTabsPlugin == 'undefined') {
             return document.querySelector('.MuiDrawer-paper ul.MuiList-root');
         },
 
+        // The React header itself, so pages that show it without tab links
+        // (e.g. with a back button) are still recognised
         isModernLayout: function() {
-            return !!this.getModernBar() || !!this.getModernDrawerList();
+            if (document.body.classList.contains('dashboardDocument')) return false;
+            return !!document.querySelector('header.MuiAppBar-root .MuiToolbar-root')
+                || !!this.getModernBar() || !!this.getModernDrawerList();
         },
 
         initModern: function() {
@@ -851,11 +907,20 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // The drawer (hamburger) button. MUI marks it edge="start"; the label
         // check covers builds without that, but deliberately not "User menu"
         isHeaderMenuButton: function(el) {
-            if (el.classList.contains('MuiIconButton-edgeStart')) {
+            if (el.classList.contains('MuiIconButton-edgeStart') || el.querySelector('svg[data-testid="MenuIcon"]')) {
                 return true;
             }
             const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
             return /^(open |toggle |show )?(the )?(main |navigation )?(menu|navigation|drawer|sidebar)$/i.test(label);
+        },
+
+        // The back button the modern header shows on pages other than home
+        isHeaderBackButton: function(el) {
+            if (el.querySelector('svg[data-testid="ArrowBackIcon"], svg[data-testid="ArrowBackIosIcon"], svg[data-testid="ArrowBackIosNewIcon"]')) {
+                return true;
+            }
+            const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
+            return /^(go )?back$/i.test(label);
         },
 
         isHomeLink: function(el) {
