@@ -323,6 +323,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 + '.customTabsIconGroup::-webkit-scrollbar{display:none;}'
                 + '.customTabsIconGroup>*{flex-shrink:0;}'
                 + '.customTabsIconGroup>:first-child{margin-left:auto;}'
+                + '.customTabsPinnedRight{flex-shrink:0;}'
                 + '}';
             document.head.appendChild(style);
         },
@@ -388,7 +389,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
             });
 
             headerRight.classList.add('customTabsIconGroup');
-            const items = Array.from(headerRight.children);
+            this.pinUserMenu(headerRight, headerRight.parentElement || headerRight);
+            const items = Array.from(headerRight.children).filter((el) => !this.isUserMenuControl(el));
             this.recordHeaderIcons(items);
             this.arrangeHeaderIcons(headerRight, items);
         },
@@ -649,6 +651,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
             // Inside the tab bar only links are tabs; a plugin's icon buttons
             // can end up in there too (Jellyfin Enhanced's tray can)
             const isLeftControl = (el) => this.isHeaderMenuButton(el) || this.isHeaderBackButton(el)
+                || this.isUserMenuControl(el)
                 || this.isHomeLink(el) || (bar && bar.contains(el) && !this.isIconControl(el))
                 || (beforeBar(el) && this.isHeaderLogo(el));
             controls = allControls.filter((el) => !isLeftControl(el));
@@ -748,6 +751,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
             // can be reordered and listed on the settings page
             this.recordHeaderIcons(group.items);
             this.arrangeHeaderIcons(container, group.items);
+            this.pinUserMenu(container, toolbar.closest('header') || toolbar);
         },
 
         // --- Jellyfin 12 Modern layout ---------------------------------------
@@ -962,6 +966,38 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
             const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
             return /^(open |toggle |show )?(the )?(main |navigation )?(menu|navigation|drawer|sidebar)$/i.test(label);
+        },
+
+        // The user menu (profile picture) stays pinned at the right end of
+        // the header, outside the icon row, like the menu button on the left
+        isUserMenuControl: function(el) {
+            if (el.classList.contains('headerUserButton') || el.querySelector('.MuiAvatar-root')) {
+                return true;
+            }
+            const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
+            return /^(user menu|account|my account|profile|user profile)$/i.test(label);
+        },
+
+        // Keeps the user menu just after the icon row, so it doesn't scroll
+        // away with the other icons on narrow screens
+        pinUserMenu: function(container, root) {
+            const controls = Array.from(root.querySelectorAll('button, a[href], [role="button"]'));
+            const userMenu = controls.find((el) => this.isUserMenuControl(el));
+            if (!userMenu || !container.contains(userMenu)) {
+                return;
+            }
+
+            // Move the outermost wrapper inside the row that holds only it
+            let item = userMenu;
+            while (item.parentElement && item.parentElement !== container) {
+                item = item.parentElement;
+            }
+            if (item.parentElement !== container) {
+                return;
+            }
+
+            item.classList.add('customTabsPinnedRight');
+            container.after(item);
         },
 
         // An icon button rather than a tab link: tab links (and the logo) are
