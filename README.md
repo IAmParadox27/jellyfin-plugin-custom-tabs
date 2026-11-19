@@ -73,9 +73,11 @@ The likelihood is the plugin hasn't been updated for that version of Jellyfin an
   <iframe class="requestIframe" src="{REQUESTS_URL}"></iframe>
 </div>
 ```
-<i><strong>Note:</strong> With the above `<style>` tags this will be applied to Jellyfin as a whole, to only affect the tab you're working on, you can surround with `#customTab_{index} { ... }` where `{index}` starts at 0 and counts up for every custom tab added.</i>
+<i><strong>Note:</strong> With the above `<style>` tags this will be applied to Jellyfin as a whole, to only affect the tab you're working on, you can surround with `#customTab_{index} { ... }` where `{index}` starts at 0 and counts up for every enabled custom tab. Disabled tabs are skipped, so turning a tab off changes the index of the tabs after it.</i>
 
 ## Icons and Images
+
+Each tab's settings are grouped into **Text**, **Placement**, **Icon** and **Content** sections. The **Enabled** switch at the top of each tab turns it off without deleting its settings.
 
 Each tab can show an icon or an image alongside, or instead of, its text:
 

@@ -14,7 +14,7 @@ namespace Jellyfin.Plugin.CustomTabs.Controller
         [HttpGet("Config")]
         public ActionResult<TabConfig[]> GetTabConfigs()
         {
-            return Ok(CustomTabsPlugin.Instance.Configuration.Tabs);
+            return Ok(CustomTabsPlugin.Instance.Configuration.GetEnabledTabs());
         }
 
         // Admin only: the raw image bytes are the request body.

@@ -31,60 +31,96 @@
             </button>
         </form>
     </div>
+    <style>
+        #customTabsConfigurationPage .customTabCard { border: 1px solid rgba(255,255,255,.15); border-radius: .5em; padding: 1em 1.5em 1.5em; margin: 0 0 2em; }
+        #customTabsConfigurationPage .customTabCardHeader { display: flex; align-items: center; justify-content: space-between; gap: 1em; flex-wrap: wrap; }
+        #customTabsConfigurationPage .customTabCardHeader h2 { margin: .3em 0; }
+        #customTabsConfigurationPage .customTabCardHeader .checkboxContainer { margin: 0; }
+        #customTabsConfigurationPage .customTabSection { margin-top: 1.5em; }
+        #customTabsConfigurationPage .customTabSection > h3 { margin: 0 0 .8em; padding-bottom: .3em; border-bottom: 1px solid rgba(255,255,255,.1); font-weight: 500; }
+        #customTabsConfigurationPage .customTabCard.customTabDisabled .customTabSection { opacity: .5; }
+        #customTabsConfigurationPage .customTabDisabledBadge { display: none; font-size: .8em; padding: .1em .6em; border-radius: 1em; background: rgba(255,255,255,.15); margin-left: .6em; vertical-align: middle; }
+        #customTabsConfigurationPage .customTabCard.customTabDisabled .customTabDisabledBadge { display: inline-block; }
+    </style>
     <template id="templateCustomTab">
-        <fieldset class="verticalSection-extrabottompadding" data-id="tab-config">
+        <fieldset class="customTabCard" data-id="tab-config">
             <input type="hidden" data-id="hiddenSectionId" />
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="templateDisplayText">Display Text</label>
-                <label class="inputLabel inputLabelUnfocused" for="templateDisplayText"></label>
-                <input id="templateDisplayText" data-id="txtDisplayText" type="text" is="emby-input" min="0" class="emby-input">
-                <div class="fieldDescription">The title of the tab. Still used as the tooltip and screen reader label when the text is hidden.</div>
-            </div>
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="templateIcon">Icon (optional)</label>
-                <input id="templateIcon" data-id="txtIcon" type="text" is="emby-input" class="emby-input" placeholder="e.g. movie, live_tv, request_page">
-                <div class="fieldDescription">A Material icon name to show on the tab. Browse names at <a is="emby-linkbutton" class="button-link" href="https://fonts.google.com/icons?icon.set=Material+Icons" target="_blank">fonts.google.com/icons</a>.</div>
-            </div>
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="templateImageUrl">Image URL (optional)</label>
-                <input id="templateImageUrl" data-id="txtImageUrl" type="text" is="emby-input" class="emby-input" placeholder="https://example.com/logo.png">
-                <div class="fieldDescription">An image to show on the tab instead of an icon, either a web address or a file uploaded below. Takes priority over the icon when both are set.</div>
-            </div>
-            <div class="inputContainer">
-                <input type="file" data-id="fileImageUpload" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/x-icon,.svg" style="display:none;" />
-                <div style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">
-                    <button data-id="btnUploadImage" is="emby-button" type="button" class="emby-button raised">
-                        <span>Upload image...</span>
-                    </button>
-                    <button data-id="btnClearImage" is="emby-button" type="button" class="emby-button raised">
-                        <span>Clear image</span>
-                    </button>
-                    <img data-id="imgPreview" alt="" style="display:none;height:2.5em;max-width:10em;object-fit:contain;" />
+            <div class="customTabCardHeader">
+                <h2 class="sectionTitle"><span data-id="tabHeading">New Tab</span><span class="customTabDisabledBadge">Disabled</span></h2>
+                <div class="checkboxContainer">
+                    <label>
+                        <input type="checkbox" is="emby-checkbox" data-id="chkEnabled" checked />
+                        <span>Enabled</span>
+                    </label>
                 </div>
-                <div class="fieldDescription">PNG, JPEG, GIF, WebP, SVG or ICO, up to 2 MB. The file is stored on the Jellyfin server. Click Save to keep it.</div>
             </div>
-            <div class="selectContainer">
-                <label class="selectLabel" for="templatePlacement">Placement</label>
-                <select is="emby-select" id="templatePlacement" data-id="selPlacement" class="emby-select-withcolor emby-select">
-                    <option value="">Tab bar (left)</option>
-                    <option value="Right">Header icons (right)</option>
-                </select>
-                <div class="fieldDescription">Header icons puts a button next to search and the user menu instead of a tab. Set an icon or image for it; without one the title is shown as text.</div>
+            <div class="fieldDescription">Turn a tab off to hide it without losing its settings.</div>
+
+            <div class="customTabSection">
+                <h3>Text</h3>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="templateDisplayText">Display Text</label>
+                    <input id="templateDisplayText" data-id="txtDisplayText" type="text" is="emby-input" class="emby-input">
+                    <div class="fieldDescription">The title of the tab. Still used as the tooltip and screen reader label when the text is hidden.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input type="checkbox" is="emby-checkbox" data-id="chkHideTitle" />
+                        <span>Hide text (show only the icon)</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Only applies when an icon or image is set. The mobile side menu always keeps the text.</div>
+                </div>
             </div>
-            <div class="checkboxContainer checkboxContainer-withDescription">
-                <label>
-                    <input type="checkbox" is="emby-checkbox" data-id="chkHideTitle" />
-                    <span>Hide text (show only the icon or image)</span>
-                </label>
-                <div class="fieldDescription checkboxFieldDescription">Only applies when an icon or image is set. The mobile side menu always keeps the text.</div>
+
+            <div class="customTabSection">
+                <h3>Placement</h3>
+                <div class="selectContainer">
+                    <label class="selectLabel" for="templatePlacement">Show this tab in</label>
+                    <select is="emby-select" id="templatePlacement" data-id="selPlacement" class="emby-select-withcolor emby-select">
+                        <option value="">Tab bar (left)</option>
+                        <option value="Right">Header icons (right)</option>
+                    </select>
+                    <div class="fieldDescription">Header icons puts a button next to search and the user menu instead of a tab. Set an icon for it; without one the title is shown as text.</div>
+                </div>
             </div>
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent">Html Content</label>
-                <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent"></label>
-                <textarea style="display:block;" class="emby-textarea emby-input" id="templateHtmlContent" data-id="templateHtmlContent">
-                </textarea>
-                <div class="fieldDescription">The html that should be displayed when this tab is shown.</div>
+
+            <div class="customTabSection">
+                <h3>Icon</h3>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="templateIcon">Material icon name</label>
+                    <input id="templateIcon" data-id="txtIcon" type="text" is="emby-input" class="emby-input" placeholder="e.g. movie, live_tv, request_page">
+                    <div class="fieldDescription">Optional. Browse names at <a is="emby-linkbutton" class="button-link" href="https://fonts.google.com/icons?icon.set=Material+Icons" target="_blank">fonts.google.com/icons</a>.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="templateImageUrl">Image URL</label>
+                    <input id="templateImageUrl" data-id="txtImageUrl" type="text" is="emby-input" class="emby-input" placeholder="https://example.com/logo.png">
+                    <div class="fieldDescription">Optional. A web address, or filled in for you when you upload a file below. Used instead of the Material icon when both are set.</div>
+                </div>
+                <div class="inputContainer">
+                    <input type="file" data-id="fileImageUpload" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/x-icon,.svg" style="display:none;" />
+                    <div style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">
+                        <button data-id="btnUploadImage" is="emby-button" type="button" class="emby-button raised">
+                            <span>Upload image...</span>
+                        </button>
+                        <button data-id="btnClearImage" is="emby-button" type="button" class="emby-button raised">
+                            <span>Clear image</span>
+                        </button>
+                        <img data-id="imgPreview" alt="" style="display:none;height:2.5em;max-width:10em;object-fit:contain;" />
+                    </div>
+                    <div class="fieldDescription">PNG, JPEG, GIF, WebP, SVG or ICO, up to 2 MB. The file is stored on the Jellyfin server. Click Save to keep it.</div>
+                </div>
             </div>
+
+            <div class="customTabSection">
+                <h3>Content</h3>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent">HTML Content</label>
+                    <textarea style="display:block;" class="emby-textarea emby-input" id="templateHtmlContent" data-id="templateHtmlContent">
+                    </textarea>
+                    <div class="fieldDescription">The HTML shown when this tab is open.</div>
+                </div>
+            </div>
+
             <button data-id="templateRemoveTab" is="emby-button" type="button" class="emby-button raised block">
                 <span>Remove</span>
             </button>
@@ -118,6 +154,7 @@
                             ImageUrl: tabConfig.querySelector("[data-id=txtImageUrl]").value.trim(),
                             HideTitle: tabConfig.querySelector("[data-id=chkHideTitle]").checked,
                             Placement: tabConfig.querySelector("[data-id=selPlacement]").value,
+                            Enabled: tabConfig.querySelector("[data-id=chkEnabled]").checked,
                         };
                         
                         config.Tabs.push(tab);
@@ -172,6 +209,11 @@
                         }
                     });
                     CustomTabsConfig.configurationWrapper.addEventListener("change", (event) => {
+                        if (event.target.getAttribute('data-id') === "chkEnabled") {
+                            CustomTabsConfig.updateCardState(event.target.closest("[data-id=tab-config]"));
+                            return;
+                        }
+
                         if (event.target.getAttribute('data-id') !== "fileImageUpload") {
                             return;
                         }
@@ -185,8 +227,12 @@
                         input.value = '';
                     });
                     CustomTabsConfig.configurationWrapper.addEventListener("input", (event) => {
-                        if (event.target.getAttribute('data-id') === "txtImageUrl") {
-                            CustomTabsConfig.updatePreview(event.target.closest("[data-id=tab-config]"));
+                        const fieldset = event.target.closest("[data-id=tab-config]");
+                        const id = event.target.getAttribute('data-id');
+                        if (id === "txtImageUrl") {
+                            CustomTabsConfig.updatePreview(fieldset);
+                        } else if (id === "txtDisplayText") {
+                            CustomTabsConfig.updateCardState(fieldset);
                         }
                     });
                     CustomTabsConfig.loadConfig();
@@ -200,6 +246,7 @@
                     const fieldset = template.querySelector('[data-id=tab-config]');
                     CustomTabsConfig.configurationWrapper.appendChild(template);
                     CustomTabsConfig.updatePreview(fieldset);
+                    CustomTabsConfig.updateCardState(fieldset);
                 },
                 addCustomTabConfig: function(tabConfig) {
                     const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
@@ -210,15 +257,24 @@
                     template.querySelector('[data-id=txtImageUrl]').value = tabConfig.ImageUrl || '';
                     template.querySelector('[data-id=chkHideTitle]').checked = !!tabConfig.HideTitle;
                     template.querySelector('[data-id=selPlacement]').value = tabConfig.Placement === 'Right' ? 'Right' : '';
+                    // Tabs saved before this setting existed have no Enabled value
+                    template.querySelector('[data-id=chkEnabled]').checked = tabConfig.Enabled !== false;
 
                     const fieldset = template.querySelector('[data-id=tab-config]');
                     CustomTabsConfig.configurationWrapper.appendChild(template);
                     CustomTabsConfig.updatePreview(fieldset);
+                    CustomTabsConfig.updateCardState(fieldset);
                 },
                 // Uploaded images are stored as a server path; route it
                 // through getUrl so it works when Jellyfin has a base URL.
                 resolveImageUrl: function(url) {
                     return url.indexOf('CustomTabs/Images/') === 0 ? window.ApiClient.getUrl(url) : url;
+                },
+                // Mirrors the title into the card heading and dims disabled tabs
+                updateCardState: function(fieldset) {
+                    const title = fieldset.querySelector('[data-id=txtDisplayText]').value.trim();
+                    fieldset.querySelector('[data-id=tabHeading]').textContent = title || 'Untitled tab';
+                    fieldset.classList.toggle('customTabDisabled', !fieldset.querySelector('[data-id=chkEnabled]').checked);
                 },
                 updatePreview: function(fieldset) {
                     const url = fieldset.querySelector('[data-id=txtImageUrl]').value.trim();

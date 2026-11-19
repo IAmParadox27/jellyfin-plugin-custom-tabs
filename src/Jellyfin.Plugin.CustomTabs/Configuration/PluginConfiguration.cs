@@ -5,6 +5,10 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
     public class PluginConfiguration : BasePluginConfiguration
     {
         public TabConfig[] Tabs { get; set; } = Array.Empty<TabConfig>();
+
+        // Disabled tabs keep their settings but are left out of the web
+        // client entirely, so the remaining tabs keep contiguous indexes.
+        public TabConfig[] GetEnabledTabs() => Tabs.Where(tab => tab.Enabled).ToArray();
     }
 
     public class TabConfig
@@ -12,6 +16,9 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         public string ContentHtml { get; set; } = string.Empty;
 
         public string Title { get; set; } = string.Empty;
+
+        // Defaults to true so tabs saved before this setting existed stay on.
+        public bool Enabled { get; set; } = true;
 
         // Material icon name shown on the tab, e.g. "movie" or "live_tv".
         public string Icon { get; set; } = string.Empty;
