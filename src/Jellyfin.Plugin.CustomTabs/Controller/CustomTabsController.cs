@@ -40,7 +40,7 @@ namespace Jellyfin.Plugin.CustomTabs.Controller
             string? extension = TabImageStore.DetectExtension(data);
             if (extension == null)
             {
-                return BadRequest("Only PNG, JPEG, GIF, WebP and ICO images are supported.");
+                return BadRequest("Only PNG, JPEG, GIF, WebP, SVG and ICO images are supported.");
             }
 
             string fileName = TabImageStore.Save(data, extension);
@@ -65,6 +65,10 @@ namespace Jellyfin.Plugin.CustomTabs.Controller
             }
 
             Response.Headers["X-Content-Type-Options"] = "nosniff";
+            // Inside <img> an SVG never runs scripts, but opening its URL
+            // directly would. This policy blocks scripts and anything else
+            // active while still allowing inline styles and gradients.
+            Response.Headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox";
             Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
             return PhysicalFile(path, TabImageStore.GetContentType(fileName));
         }

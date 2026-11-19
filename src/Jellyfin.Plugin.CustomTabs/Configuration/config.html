@@ -51,7 +51,7 @@
                 <div class="fieldDescription">An image to show on the tab instead of an icon, either a web address or a file uploaded below. Takes priority over the icon when both are set.</div>
             </div>
             <div class="inputContainer">
-                <input type="file" data-id="fileImageUpload" accept="image/png,image/jpeg,image/gif,image/webp,image/x-icon" style="display:none;" />
+                <input type="file" data-id="fileImageUpload" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/x-icon,.svg" style="display:none;" />
                 <div style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">
                     <button data-id="btnUploadImage" is="emby-button" type="button" class="emby-button raised">
                         <span>Upload image...</span>
@@ -61,7 +61,7 @@
                     </button>
                     <img data-id="imgPreview" alt="" style="display:none;height:2.5em;max-width:10em;object-fit:contain;" />
                 </div>
-                <div class="fieldDescription">PNG, JPEG, GIF, WebP or ICO, up to 2 MB. The file is stored on the Jellyfin server. Click Save to keep it.</div>
+                <div class="fieldDescription">PNG, JPEG, GIF, WebP, SVG or ICO, up to 2 MB. The file is stored on the Jellyfin server. Click Save to keep it.</div>
             </div>
             <div class="checkboxContainer checkboxContainer-withDescription">
                 <label>
@@ -227,19 +227,40 @@
                         return;
                     }
 
+                    // ApiClient.ajax form-encodes any body that isn't a string,
+                    // which empties a File, so send it with fetch and add the
+                    // auth header ourselves.
+                    const headers = {
+                        'Content-Type': file.type || 'application/octet-stream',
+                        'Accept': 'application/json'
+                    };
+                    if (typeof window.ApiClient.setRequestHeaders === 'function') {
+                        window.ApiClient.setRequestHeaders(headers);
+                    } else {
+                        headers['X-Emby-Token'] = window.ApiClient.accessToken();
+                    }
+
                     Dashboard.showLoadingMsg();
-                    window.ApiClient.ajax({
-                        type: 'POST',
-                        url: window.ApiClient.getUrl('CustomTabs/Images'),
-                        data: file,
-                        contentType: file.type || 'application/octet-stream',
-                        dataType: 'json'
+                    fetch(window.ApiClient.getUrl('CustomTabs/Images'), {
+                        method: 'POST',
+                        headers: headers,
+                        body: file,
+                        credentials: 'same-origin'
+                    }).then(function (response) {
+                        if (!response.ok) {
+                            return response.text().then(function (text) {
+                                throw new Error(text || ('HTTP ' + response.status));
+                            });
+                        }
+                        return response.json();
                     }).then(function (result) {
-                        fieldset.querySelector('[data-id=txtImageUrl]').value = result.Url;
+                        // Jellyfin serialises PascalCase; accept camelCase too
+                        fieldset.querySelector('[data-id=txtImageUrl]').value = result.Url || result.url;
                         CustomTabsConfig.updatePreview(fieldset);
                     }).catch(function (error) {
-                        console.error(error);
-                        Dashboard.alert('The image could not be uploaded. Use a PNG, JPEG, GIF, WebP or ICO file up to 2 MB.');
+                        console.error('CustomTabs: image upload failed', error);
+                        const detail = error && error.message ? error.message.replace(/^"|"$/g, '') : '';
+                        Dashboard.alert('The image could not be uploaded. ' + (detail || 'Use a PNG, JPEG, GIF, WebP, SVG or ICO file up to 2 MB.'));
                     }).finally(function () {
                         Dashboard.hideLoadingMsg();
                     });

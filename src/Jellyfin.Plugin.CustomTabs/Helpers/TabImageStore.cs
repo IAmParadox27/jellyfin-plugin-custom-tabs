@@ -12,7 +12,7 @@ namespace Jellyfin.Plugin.CustomTabs.Helpers
         public const long MaxBytes = 2 * 1024 * 1024;
 
         private static readonly Regex FileNamePattern =
-            new Regex("^[a-f0-9]{32}\\.(png|jpg|gif|webp|ico)$", RegexOptions.Compiled);
+            new Regex("^[a-f0-9]{32}\\.(png|jpg|gif|webp|ico|svg)$", RegexOptions.Compiled);
 
         public static string Folder => Path.Combine(
             CustomTabsPlugin.Instance.ConfigurationsPath, "CustomTabs", "images");
@@ -20,8 +20,8 @@ namespace Jellyfin.Plugin.CustomTabs.Helpers
         public static bool IsValidFileName(string fileName) => FileNamePattern.IsMatch(fileName);
 
         // Identify the format from the file's own bytes rather than trusting
-        // the upload's content type. SVG is deliberately not accepted: it can
-        // carry scripts, and these files are served from the Jellyfin origin.
+        // the upload's content type. SVG can carry scripts, so it is served
+        // with a sandboxing Content-Security-Policy (see the controller).
         public static string? DetectExtension(byte[] data)
         {
             if (data.Length >= 8 && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47)
@@ -50,7 +50,37 @@ namespace Jellyfin.Plugin.CustomTabs.Helpers
                 return "ico";
             }
 
+            if (LooksLikeSvg(data))
+            {
+                return "svg";
+            }
+
             return null;
+        }
+
+        // SVG is text: allow a BOM, XML declaration, doctype and comments
+        // before the root element, then require an <svg> element.
+        private static bool LooksLikeSvg(byte[] data)
+        {
+            int length = Math.Min(data.Length, 4096);
+            string head;
+            try
+            {
+                head = new System.Text.UTF8Encoding(false, true).GetString(data, 0, length);
+            }
+            catch (ArgumentException)
+            {
+                // Invalid UTF-8, or a multi-byte character cut at the 4 KB mark
+                head = System.Text.Encoding.UTF8.GetString(data, 0, length);
+                if (head.IndexOf('\0') >= 0)
+                {
+                    return false;
+                }
+            }
+
+            head = head.TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
+            return head.StartsWith("<", StringComparison.Ordinal)
+                && head.IndexOf("<svg", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         public static string GetContentType(string fileName)
@@ -62,6 +92,7 @@ namespace Jellyfin.Plugin.CustomTabs.Helpers
                 ".gif" => "image/gif",
                 ".webp" => "image/webp",
                 ".ico" => "image/x-icon",
+                ".svg" => "image/svg+xml",
                 _ => "application/octet-stream"
             };
         }
