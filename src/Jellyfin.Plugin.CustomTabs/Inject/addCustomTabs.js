@@ -677,7 +677,11 @@ if (typeof window.customTabsPlugin == 'undefined') {
             const tabBar = this.getModernBar();
             const tabBarChildren = tabBar ? Array.from(tabBar.children).map((child) => describe(child)
                 + ' [' + (this.nativeButtonLabel(child) || child.textContent.trim().slice(0, 30)) + ']') : [];
+            const drawerLists = this.getModernDrawerLists().map((ul, i) => `list ${i + 1}: `
+                + Array.from(ul.children).map((child) => describe(child) + ' [' + child.textContent.trim().slice(0, 30)
+                    + (child.querySelector('.MuiListItemIcon-root') ? ', has icon slot' : '') + ']').join(' | '));
             console.log('CustomTabs header debug', {
+                drawerLists: drawerLists.length ? drawerLists : '(side menu not open or not rendered)',
                 toolbarChildren: toolbarChildren,
                 tabBarChildren: tabBarChildren,
                 layout: group ? 'modern' : (legacy ? 'legacy' : 'not found'),
@@ -849,6 +853,13 @@ if (typeof window.customTabsPlugin == 'undefined') {
             return document.querySelector('.MuiDrawer-paper ul.MuiList-root');
         },
 
+        // Every list in the drawer: Jellyfin keeps the libraries in their own
+        // list (under a "Media" heading), apart from Home and Favorites
+        getModernDrawerLists: function() {
+            if (document.body.classList.contains('dashboardDocument')) return [];
+            return Array.from(document.querySelectorAll('.MuiDrawer-paper ul.MuiList-root'));
+        },
+
         // The React header itself, so pages that show it without tab links
         // (e.g. with a back button) are still recognised
         isModernLayout: function() {
@@ -1012,6 +1023,33 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
                 this.arrangeTabs(list, '[id^="customTabDrawerButton_"]');
             }
+
+            // The other drawer lists hold more of Jellyfin's own tabs (the
+            // libraries): give them their renames, icons and hiding too
+            this.getModernDrawerLists().forEach((other) => {
+                if (other !== list) {
+                    this.applyStockChanges(other);
+                }
+            });
+        },
+
+        // Renames, icon changes and hiding for the built-in items of a list
+        // that holds no custom tabs, without reordering it
+        applyStockChanges: function(container) {
+            const hidden = this.hiddenTabs || [];
+            const isDrawer = container.tagName === 'UL' || container.classList.contains('MuiList-root');
+            Array.from(container.children).forEach((el) => {
+                // Only navigation items: skip headings, dividers and nested lists
+                if (!el.querySelector('a[href], [role="button"]') && !(el.tagName === 'A' && el.getAttribute('href'))) {
+                    return;
+                }
+                if (el.querySelector('ul.MuiList-root')) {
+                    return;
+                }
+                const key = `stock:${this.stockLabel(el)}`;
+                this.applyStockOverride(el, isDrawer);
+                el.classList.toggle('customTabsHidden', hidden.indexOf(key) !== -1);
+            });
         },
 
         normaliseLabel: function(text) {
