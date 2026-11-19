@@ -573,7 +573,11 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 };
             });
 
+            const toolbar = document.querySelector('header.MuiAppBar-root .MuiToolbar-root');
+            const toolbarChildren = toolbar ? Array.from(toolbar.children).map((child) => describe(child)
+                + ' [' + Array.from(child.querySelectorAll('button, a[href]')).map((c) => this.nativeButtonLabel(c) || '?').join(', ') + ']') : [];
             console.log('CustomTabs header debug', {
+                toolbarChildren: toolbarChildren,
                 layout: group ? 'modern' : (legacy ? 'legacy' : 'not found'),
                 tabBarFound: !!this.getModernBar(),
                 savedHeaderIconOrder: this.headerIconOrder,
@@ -601,26 +605,19 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 .filter((el) => !(el.parentElement && el.parentElement.closest(selector)));
             let controls = allControls;
 
-            // The left side of the toolbar is the menu button, the back button
-            // (shown on pages other than home), the server logo / home link
-            // and the tab links. The right group is every control after the
-            // last of those, whether or not the tab links are showing (they
-            // collapse into the drawer on narrow screens, and some pages
-            // render the header without them).
+            // Every control in the toolbar is a header icon except the menu
+            // button, the back button (shown on pages other than home), the
+            // server logo / home link and the tab links. This goes by what a
+            // control is, not where it sits: other plugins put their icons in
+            // different places (Jellyfin Enhanced can put its tray right after
+            // the menu button), and only icons listed in the saved order are
+            // ever moved.
             const bar = this.getModernBar();
+            const beforeBar = (el) => bar && (bar.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING);
             const isLeftControl = (el) => this.isHeaderMenuButton(el) || this.isHeaderBackButton(el)
-                || this.isHomeLink(el) || (bar && bar.contains(el));
-            let leftEnd = -1;
-            allControls.forEach((el, i) => {
-                if (isLeftControl(el)) {
-                    leftEnd = i;
-                }
-            });
-
-            controls = leftEnd >= 0 ? allControls.slice(leftEnd + 1) : allControls.slice(1);
-            if (bar) {
-                controls = controls.filter((el) => bar.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
-            }
+                || this.isHomeLink(el) || (bar && bar.contains(el))
+                || (beforeBar(el) && this.isHeaderLogo(el));
+            controls = allControls.filter((el) => !isLeftControl(el));
 
             if (!controls.length) {
                 return null;
