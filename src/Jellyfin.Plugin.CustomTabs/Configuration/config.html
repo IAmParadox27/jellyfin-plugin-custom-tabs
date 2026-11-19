@@ -19,6 +19,10 @@
         <hr class="solid">
 
         <form class="customTabsConfigurationForm">
+            <div class="customTabListActions">
+                <button id="btnExpandAll" is="emby-button" type="button" class="emby-button raised"><span>Expand all</span></button>
+                <button id="btnCollapseAll" is="emby-button" type="button" class="emby-button raised"><span>Collapse all</span></button>
+            </div>
             <div id="configurationWrapper">
             </div>
             <button id="btnAddCustomTab" is="emby-button" type="button" class="raised button block">
@@ -35,6 +39,13 @@
         #customTabsConfigurationPage .customTabCard { border: 1px solid rgba(255,255,255,.15); border-radius: .5em; padding: 1em 1.5em 1.5em; margin: 0 0 2em; }
         #customTabsConfigurationPage .customTabCardHeader { display: flex; align-items: center; justify-content: space-between; gap: 1em; flex-wrap: wrap; }
         #customTabsConfigurationPage .customTabCardHeader h2 { margin: .3em 0; }
+        #customTabsConfigurationPage .customTabHeading { flex: 1; min-width: 0; }
+        #customTabsConfigurationPage .customTabToggle { display: flex; align-items: center; gap: .6em; width: 100%; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #customTabsConfigurationPage .customTabChevron { flex: none; width: .55em; height: .55em; border-right: .15em solid currentColor; border-bottom: .15em solid currentColor; transform: rotate(45deg); margin: 0 .3em .25em; transition: transform .15s; }
+        #customTabsConfigurationPage .customTabCollapsed .customTabChevron { transform: rotate(-45deg); margin-bottom: 0; }
+        #customTabsConfigurationPage .customTabCollapsed .customTabBody { display: none; }
+        #customTabsConfigurationPage .customTabCard.customTabCollapsed { padding-bottom: 1em; }
+        #customTabsConfigurationPage .customTabListActions { display: flex; justify-content: flex-end; gap: 1em; margin-bottom: 1em; }
         #customTabsConfigurationPage .customTabCardHeader .checkboxContainer { margin: 0; }
         #customTabsConfigurationPage .customTabSection { margin-top: 1.5em; }
         #customTabsConfigurationPage .customTabSection > h3 { margin: 0 0 .8em; padding-bottom: .3em; border-bottom: 1px solid rgba(255,255,255,.1); font-weight: 500; }
@@ -46,7 +57,12 @@
         <fieldset class="customTabCard" data-id="tab-config">
             <input type="hidden" data-id="hiddenSectionId" />
             <div class="customTabCardHeader">
-                <h2 class="sectionTitle"><span data-id="tabHeading">New Tab</span><span class="customTabDisabledBadge">Disabled</span></h2>
+                <h2 class="sectionTitle customTabHeading">
+                    <button type="button" class="customTabToggle" data-id="btnToggleCard" aria-expanded="true" title="Show or hide this tab's settings">
+                        <span class="customTabChevron" aria-hidden="true"></span>
+                        <span data-id="tabHeading">New Tab</span><span class="customTabDisabledBadge">Disabled</span>
+                    </button>
+                </h2>
                 <div class="checkboxContainer">
                     <label>
                         <input type="checkbox" is="emby-checkbox" data-id="chkEnabled" checked />
@@ -54,6 +70,7 @@
                     </label>
                 </div>
             </div>
+            <div class="customTabBody">
             <div class="fieldDescription">Turn a tab off to hide it without losing its settings.</div>
 
             <div class="customTabSection">
@@ -124,6 +141,7 @@
             <button data-id="templateRemoveTab" is="emby-button" type="button" class="emby-button raised block">
                 <span>Remove</span>
             </button>
+            </div>
         </fieldset>
     </template>
     <script type="text/javascript">
@@ -187,7 +205,16 @@
                 init: function () {
                     CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
                     CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
+                    document.querySelector("#btnExpandAll").addEventListener("click", () => CustomTabsConfig.setAllCollapsed(false));
+                    document.querySelector("#btnCollapseAll").addEventListener("click", () => CustomTabsConfig.setAllCollapsed(true));
                     CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
+                        const toggle = event.target.closest("[data-id=btnToggleCard]");
+                        if (toggle) {
+                            const card = toggle.closest("[data-id=tab-config]");
+                            CustomTabsConfig.setCollapsed(card, !card.classList.contains('customTabCollapsed'));
+                            return;
+                        }
+
                         // Clicks often land on the <span> inside a button
                         const control = event.target.closest("[data-id]");
                         const fieldset = event.target.closest("[data-id=tab-config]");
@@ -247,6 +274,9 @@
                     CustomTabsConfig.configurationWrapper.appendChild(template);
                     CustomTabsConfig.updatePreview(fieldset);
                     CustomTabsConfig.updateCardState(fieldset);
+                    // A new tab opens expanded so it can be filled in straight away
+                    CustomTabsConfig.setCollapsed(fieldset, false);
+                    fieldset.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 },
                 addCustomTabConfig: function(tabConfig) {
                     const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
@@ -264,6 +294,15 @@
                     CustomTabsConfig.configurationWrapper.appendChild(template);
                     CustomTabsConfig.updatePreview(fieldset);
                     CustomTabsConfig.updateCardState(fieldset);
+                    // Saved tabs start collapsed so the list is easy to scan
+                    CustomTabsConfig.setCollapsed(fieldset, true);
+                },
+                setCollapsed: function(fieldset, collapsed) {
+                    fieldset.classList.toggle('customTabCollapsed', collapsed);
+                    fieldset.querySelector('[data-id=btnToggleCard]').setAttribute('aria-expanded', String(!collapsed));
+                },
+                setAllCollapsed: function(collapsed) {
+                    document.querySelectorAll("[data-id=tab-config]").forEach(card => CustomTabsConfig.setCollapsed(card, collapsed));
                 },
                 // Uploaded images are stored as a server path; route it
                 // through getUrl so it works when Jellyfin has a base URL.

@@ -77,7 +77,7 @@ The likelihood is the plugin hasn't been updated for that version of Jellyfin an
 
 ## Icons and Images
 
-Each tab's settings are grouped into **Text**, **Placement**, **Icon** and **Content** sections. The **Enabled** switch at the top of each tab turns it off without deleting its settings.
+Each tab's settings are grouped into **Text**, **Placement**, **Icon** and **Content** sections. The **Enabled** switch at the top of each tab turns it off without deleting its settings. Saved tabs start collapsed; click a tab's title to show or hide its settings, or use **Expand all** and **Collapse all**.
 
 Each tab can show an icon or an image alongside, or instead of, its text:
 
