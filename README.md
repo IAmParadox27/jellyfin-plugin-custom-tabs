@@ -97,5 +97,9 @@ Each tab can show an icon or an image alongside, or instead of, its text:
 - **Placement**: *Tab bar (left)* adds a normal tab. *Header icons (right)* adds a button next to search and the user menu instead, showing the icon or image with the title as its tooltip. Clicking it opens the tab's content just like a normal tab.
 - **Hide text**: shows only the icon or image. The title is still used as the tooltip and the screen reader label. This option is ignored when no icon or image is set, so a tab is never blank. The mobile side menu always keeps the text.
 
+### Default icons
+
+A tab named **Anime**, whether a library or a custom tab, shows a cloud icon by default, drawn in the same colour as the other tabs. Setting your own icon or image for the tab, or hiding its icon, takes precedence. The defaults live in `defaultTabIcons` in `Inject/addCustomTabs.js` (a name and an alpha-mask image), so more can be added there.
+
 ## Issues
 If you find an issue with any of the sections or usage of the plugin, please open an issue on GitHub. Please make sure to check the closed issues in case your issue has already been resolved, and also make sure to check the other plugins available from me as another plugin may have experienced the same issue.

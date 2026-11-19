@@ -268,8 +268,33 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
         // --- Tab icons and images ---------------------------------------------
 
+        // Icons used by default for tabs with these names (built-in or
+        // custom) when no icon or image has been set for them. Each is an
+        // alpha mask, drawn in the text colour so it matches the other tabs.
+        defaultTabIcons: {
+            'anime': 'data:image/png;base64,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'
+        },
+
+        defaultTabIconFor: function(label) {
+            const key = this.normaliseLabel(label);
+            return Object.prototype.hasOwnProperty.call(this.defaultTabIcons, key) ? this.defaultTabIcons[key] : null;
+        },
+
+        buildDefaultIcon: function(label) {
+            const mask = this.defaultTabIconFor(label);
+            if (!mask) {
+                return null;
+            }
+            const span = document.createElement('span');
+            span.className = 'customTabIcon customTabMaskIcon';
+            span.setAttribute('aria-hidden', 'true');
+            span.style.setProperty('--ct-mask', `url("${mask}")`);
+            return span;
+        },
+
         // Returns the element for a tab's image or Material icon, or null when
-        // the tab has neither. An image wins when both are configured.
+        // the tab has neither. An image wins when both are configured. A tab
+        // with neither falls back to its default icon, if its name has one.
         buildTabIcon: function(config) {
             const imageUrl = (config.ImageUrl || '').trim();
             if (imageUrl) {
@@ -295,7 +320,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 return span;
             }
 
-            return null;
+            return config.Title ? this.buildDefaultIcon(config.Title) : null;
         },
 
         // Text is only hidden when there is an icon or image to show instead
@@ -338,6 +363,10 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 + '.customTabsHidden{display:none !important;}'
                 + '.customTabsIconOnly{margin-left:0 !important;margin-right:0 !important;}'
                 + '.customTabsOverrideIcon.material-icons{font-size:20px;}'
+                // Default icons are masks filled with the text colour
+                + '.customTabMaskIcon{display:inline-block;width:1.4em;height:1.4em;background-color:currentColor;vertical-align:middle;'
+                + '-webkit-mask:var(--ct-mask) center/contain no-repeat;mask:var(--ct-mask) center/contain no-repeat;}'
+                + '.MuiButton-startIcon>.customTabMaskIcon,.MuiListItemIcon-root>.customTabMaskIcon,.customTabHeaderButton>.customTabMaskIcon{width:22px;height:22px;}'
                 // On narrow screens the header icons scroll sideways instead of
                 // running off the edge. The group is right-aligned with an auto
                 // margin rather than justify-content, so that when it overflows
@@ -1056,13 +1085,17 @@ if (typeof window.customTabsPlugin == 'undefined') {
             // Icon
             const hideIcon = !!(o && o.HideIcon);
             const replacement = (o && (o.ImageUrl || o.Icon)) ? { ImageUrl: o.ImageUrl, Icon: o.Icon } : null;
-            const signature = replacement ? `${replacement.ImageUrl}|${replacement.Icon}` : '';
+            // Without a chosen icon, a tab whose (new) name has a default icon
+            // uses that instead of Jellyfin's
+            const shownName = this.normaliseLabel(label);
+            const useDefault = !replacement && !!this.defaultTabIconFor(shownName);
+            const signature = replacement ? `${replacement.ImageUrl}|${replacement.Icon}` : (useDefault ? `default:${shownName}` : '');
             let slot = link.querySelector('.MuiButton-startIcon, .MuiListItemIcon-root');
             let ours = link.querySelector('.customTabsOverrideIcon');
 
-            if (replacement && !hideIcon) {
+            if ((replacement || useDefault) && !hideIcon) {
                 if (!ours || ours.dataset.ctSig !== signature) {
-                    const icon = this.buildTabIcon(replacement);
+                    const icon = replacement ? this.buildTabIcon(replacement) : this.buildDefaultIcon(shownName);
                     if (icon) {
                         icon.classList.add('customTabsOverrideIcon');
                         icon.dataset.ctSig = signature;
