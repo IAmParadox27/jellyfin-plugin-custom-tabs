@@ -72,6 +72,8 @@
         #customTabsConfigurationPage .customTabOrderExpand { margin-left: .2em; }
         #customTabsConfigurationPage .customTabOrderDetails { list-style: none; padding: .8em 1em 1em 4.2em; background: rgba(255,255,255,.04); border-top: 1px solid rgba(255,255,255,.08); }
         #customTabsConfigurationPage .customTabDetailField { margin-bottom: .8em; }
+        #customTabsConfigurationPage .customTabUploadBar { display: flex; align-items: center; gap: 1em; flex-wrap: wrap; margin: .5em 0 .3em; }
+        #customTabsConfigurationPage .customTabUploadPreview { height: 2.5em; max-width: 10em; object-fit: contain; }
         #customTabsConfigurationPage .customTabDetailField > label { display: block; margin-bottom: .3em; }
         #customTabsConfigurationPage .customTabDetailField > .customTabCheckboxLabel { display: inline-flex; }
         #customTabsConfigurationPage .customTabDetailInput { width: 100%; max-width: 28em; box-sizing: border-box; padding: .45em .6em; background: rgba(255,255,255,.08); color: inherit; border: 1px solid rgba(255,255,255,.2); border-radius: .3em; font: inherit; }
@@ -153,7 +155,7 @@
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="templateIcon">Material icon name</label>
                     <input id="templateIcon" data-id="txtIcon" type="text" is="emby-input" class="emby-input" placeholder="e.g. movie, live_tv, request_page">
-                    <div class="fieldDescription">Optional. Browse names at <a is="emby-linkbutton" class="button-link" href="https://fonts.google.com/icons?icon.set=Material+Icons" target="_blank">fonts.google.com/icons</a>.</div>
+                    <div class="fieldDescription">Optional. Browse names at <a is="emby-linkbutton" class="button-link" href="https://fonts.google.com/icons?icon.set=Material+Icons" target="_blank">fonts.google.com/icons</a> (Google's Material Icons set, which Jellyfin includes; names from other icon sets such as Material Design Icons won't show).</div>
                 </div>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="templateImageUrl">Image URL</label>
@@ -353,6 +355,17 @@
                             const key = event.target.closest('[data-details-for]').getAttribute('data-details-for');
                             const o = CustomTabsConfig.overrideFor(key);
                             o[prop] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
+                            if (prop === 'ImageUrl') {
+                                const preview = event.target.closest('.customTabDetailField').querySelector('[data-ov-preview]');
+                                const url = event.target.value.trim();
+                                if (preview && url) {
+                                    preview.src = CustomTabsConfig.resolveImageUrl(url);
+                                    preview.style.display = '';
+                                } else if (preview) {
+                                    preview.removeAttribute('src');
+                                    preview.style.display = 'none';
+                                }
+                            }
                             const rowName = listElement.querySelector('[data-key="' + CSS.escape(key) + '"] .customTabOrderName');
                             const rowEl = rowName && rowName.closest('[data-key]');
                             if (rowName) {
@@ -365,6 +378,20 @@
                         };
                         listElement.addEventListener("input", onOverride);
                         listElement.addEventListener("change", (event) => {
+                            if (event.target.hasAttribute('data-ov-file')) {
+                                const input = event.target;
+                                const file = input.files && input.files[0];
+                                const wrap = input.closest('.customTabDetailField');
+                                if (file) {
+                                    CustomTabsConfig.uploadImageFile(file).then(function (url) {
+                                        if (url) {
+                                            CustomTabsConfig.setPanelImage(wrap, url, true);
+                                        }
+                                    });
+                                }
+                                input.value = '';
+                                return;
+                            }
                             if (onOverride(event)) {
                                 return;
                             }
@@ -386,6 +413,16 @@
                                 const at = expandedKeys.indexOf(key);
                                 if (at === -1) expandedKeys.push(key); else expandedKeys.splice(at, 1);
                                 CustomTabsConfig.renderOrder(name);
+                                return;
+                            }
+                            const uploadButton = event.target.closest('[data-ov-upload]');
+                            if (uploadButton) {
+                                uploadButton.closest('.customTabDetailField').querySelector('[data-ov-file]').click();
+                                return;
+                            }
+                            const clearButton = event.target.closest('[data-ov-clear]');
+                            if (clearButton) {
+                                CustomTabsConfig.setPanelImage(clearButton.closest('.customTabDetailField'), '', true);
                                 return;
                             }
                             const editCard = event.target.closest('[data-edit-card]');
@@ -676,8 +713,8 @@
                     li.append(
                         field('Display text', 'Title', 'text', entry.name, 'Leave empty to keep Jellyfin\'s name.'),
                         field('Hide text (show only the icon)', 'HideTitle', 'checkbox'),
-                        field('Material icon name', 'Icon', 'text', 'e.g. movie, live_tv, favorite', 'Replaces Jellyfin\'s icon. Leave empty to keep it.'),
-                        field('Image URL', 'ImageUrl', 'text', 'https://example.com/logo.png', 'Used instead of the Material icon when both are set. You can paste the Image URL of an image uploaded on a custom tab.'),
+                        CustomTabsConfig.withIconLink(field('Material icon name', 'Icon', 'text', 'e.g. movie, live_tv, favorite', 'Replaces Jellyfin\'s icon. Leave empty to keep it.')),
+                        CustomTabsConfig.withUpload(field('Image URL', 'ImageUrl', 'text', 'https://example.com/logo.png', 'Used instead of the Material icon when both are set: a web address, or upload a file below.'), o.ImageUrl),
                         field('Hide icon', 'HideIcon', 'checkbox')
                     );
                     const scope = document.createElement('div');
@@ -685,6 +722,75 @@
                     scope.textContent = 'Applies to the newer header layout. The side menu on small screens keeps the text.';
                     li.appendChild(scope);
                     return li;
+                },
+                // Adds the icon browser link to a Material icon field's help
+                withIconLink: function (wrap) {
+                    const help = wrap.querySelector('.fieldDescription');
+                    help.appendChild(document.createTextNode(' Browse names at '));
+                    const a = document.createElement('a');
+                    a.href = 'https://fonts.google.com/icons?icon.set=Material+Icons';
+                    a.target = '_blank';
+                    a.rel = 'noopener';
+                    a.className = 'button-link';
+                    a.textContent = 'fonts.google.com/icons';
+                    help.appendChild(a);
+                    help.appendChild(document.createTextNode(' (Google\'s Material Icons set, which Jellyfin includes; names from other icon sets such as Material Design Icons won\'t show).'));
+                    return wrap;
+                },
+                // Upload / clear buttons and a preview under an Image URL field
+                withUpload: function (wrap, url) {
+                    const bar = document.createElement('div');
+                    bar.className = 'customTabUploadBar';
+
+                    const file = document.createElement('input');
+                    file.type = 'file';
+                    file.accept = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/x-icon,.svg';
+                    file.style.display = 'none';
+                    file.setAttribute('data-ov-file', '1');
+
+                    const upload = document.createElement('button');
+                    upload.type = 'button';
+                    upload.className = 'emby-button raised';
+                    upload.setAttribute('data-ov-upload', '1');
+                    upload.textContent = 'Upload image...';
+
+                    const clear = document.createElement('button');
+                    clear.type = 'button';
+                    clear.className = 'emby-button raised';
+                    clear.setAttribute('data-ov-clear', '1');
+                    clear.textContent = 'Clear image';
+
+                    const preview = document.createElement('img');
+                    preview.alt = '';
+                    preview.className = 'customTabUploadPreview';
+                    preview.setAttribute('data-ov-preview', '1');
+
+                    bar.append(file, upload, clear, preview);
+                    const help = wrap.querySelector('.fieldDescription');
+                    wrap.insertBefore(bar, help);
+                    const note = document.createElement('div');
+                    note.className = 'fieldDescription';
+                    note.textContent = 'PNG, JPEG, GIF, WebP, SVG or ICO, up to 2 MB. The file is stored on the Jellyfin server. Click Save to keep it.';
+                    wrap.appendChild(note);
+                    CustomTabsConfig.setPanelImage(wrap, url || '', false);
+                    return wrap;
+                },
+                // Sets a panel's Image URL field, preview and override
+                setPanelImage: function (wrap, url, store) {
+                    const input = wrap.querySelector('[data-ov-field=ImageUrl]');
+                    const preview = wrap.querySelector('[data-ov-preview]');
+                    input.value = url;
+                    if (url) {
+                        preview.src = CustomTabsConfig.resolveImageUrl(url);
+                        preview.style.display = '';
+                    } else {
+                        preview.removeAttribute('src');
+                        preview.style.display = 'none';
+                    }
+                    if (store) {
+                        // Let the field's own input handler store it and update the row
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
                 },
                 // Show/hide switch at the start of each row
                 visibilitySwitch: function (name, shown) {
@@ -856,9 +962,19 @@
                     }
                 },
                 uploadImage: function(fieldset, file) {
+                    CustomTabsConfig.uploadImageFile(file).then(function (url) {
+                        if (url) {
+                            fieldset.querySelector('[data-id=txtImageUrl]').value = url;
+                            CustomTabsConfig.updatePreview(fieldset);
+                        }
+                    });
+                },
+                // Uploads an image and resolves with its server path, or null
+                // when it was rejected (the reason has been shown already)
+                uploadImageFile: function(file) {
                     if (file.size > 2 * 1024 * 1024) {
                         Dashboard.alert('Images must be 2 MB or smaller.');
-                        return;
+                        return Promise.resolve(null);
                     }
 
                     // ApiClient.ajax form-encodes any body that isn't a string,
@@ -875,7 +991,7 @@
                     }
 
                     Dashboard.showLoadingMsg();
-                    fetch(window.ApiClient.getUrl('CustomTabs/Images'), {
+                    return fetch(window.ApiClient.getUrl('CustomTabs/Images'), {
                         method: 'POST',
                         headers: headers,
                         body: file,
@@ -889,12 +1005,12 @@
                         return response.json();
                     }).then(function (result) {
                         // Jellyfin serialises PascalCase; accept camelCase too
-                        fieldset.querySelector('[data-id=txtImageUrl]').value = result.Url || result.url;
-                        CustomTabsConfig.updatePreview(fieldset);
+                        return result.Url || result.url || null;
                     }).catch(function (error) {
                         console.error('CustomTabs: image upload failed', error);
                         const detail = error && error.message ? error.message.replace(/^"|"$/g, '') : '';
                         Dashboard.alert('The image could not be uploaded. ' + (detail || 'Use a PNG, JPEG, GIF, WebP, SVG or ICO file up to 2 MB.'));
+                        return null;
                     }).finally(function () {
                         Dashboard.hideLoadingMsg();
                     });

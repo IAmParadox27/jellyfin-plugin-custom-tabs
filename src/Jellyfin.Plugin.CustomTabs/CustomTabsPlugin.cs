@@ -27,7 +27,10 @@ public class CustomTabsPlugin : BasePlugin<PluginConfiguration>, IHasPluginConfi
 
         if (configuration is PluginConfiguration config)
         {
-            Helpers.TabImageStore.DeleteUnreferenced(config.Tabs.Select(tab => tab.ImageUrl));
+            // Images can be used by custom tabs and by Jellyfin's own tabs
+            Helpers.TabImageStore.DeleteUnreferenced(
+                config.Tabs.Select(tab => tab.ImageUrl)
+                    .Concat(config.TabOverrides.Select(tabOverride => tabOverride.ImageUrl)));
         }
     }
 
