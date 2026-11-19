@@ -662,10 +662,17 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
             // Style source: a native MUI icon button with an icon, else any
             // native control with one
-            const natives = group.controls.filter((el) => !this.isOurHeaderButton(el));
-            const template = natives.find((el) => el.classList.contains('MuiIconButton-root') && el.querySelector('svg'))
+            // Prefer icons right of the tab bar, so an unrecognised control on
+            // the left (or a plugin's tray) never becomes the insert point
+            const bar = this.getModernBar();
+            const allNatives = group.controls.filter((el) => !this.isOurHeaderButton(el));
+            const rightNatives = bar
+                ? allNatives.filter((el) => !bar.contains(el) && (bar.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING))
+                : allNatives;
+            const pick = (natives) => natives.find((el) => el.classList.contains('MuiIconButton-root') && el.querySelector('svg'))
                 || natives.find((el) => el.querySelector('svg, .material-icons'))
                 || natives[0];
+            const template = pick(rightNatives) || pick(allNatives);
 
             if (!template) {
                 return;
