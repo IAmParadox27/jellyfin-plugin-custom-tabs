@@ -83,6 +83,8 @@ Each tab's settings are grouped into **Text**, **Placement**, **Icon** and **Con
 
 The **Tab order** list at the top of the settings page numbers every tab in the header, Jellyfin's own (Home, Favorites and your libraries) and custom tabs together. Change a number or use the arrows to reorder, then save. This applies to the newer header layout, where libraries appear as tabs. In the classic layout the tab bar matches tabs to panels by position, so custom tabs always come after Home and Favorites there. Jellyfin's tabs are matched by their label, so if you rename a library, check its place in the list.
 
+The **Header icon order** list does the same for the icon buttons on the right of the header: Jellyfin's own (search, cast and so on), icons added by other plugins, and tabs set to *Header icons (right)*. The server can't know which icons a header has, so the plugin notes the ones it sees in your browser's storage. Open the Jellyfin home page once in the same browser and they appear in this list. Icons are matched by their name (tooltip), and icons without one, such as some user avatars, stay at the end. This list works in both header layouts.
+
 Each tab can show an icon or an image alongside, or instead of, its text:
 
 - **Icon**: a [Material icon](https://fonts.google.com/icons?icon.set=Material+Icons) name, such as `movie`, `live_tv` or `request_page`. Jellyfin already ships this icon font.

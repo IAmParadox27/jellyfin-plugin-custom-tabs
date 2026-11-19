@@ -15,6 +15,12 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         // its label) and "custom:<Id>" for a custom tab. Empty keeps the
         // default: custom tabs after the built-in ones.
         public string[] TabOrder { get; set; } = Array.Empty<string>();
+
+        // Order of the icon buttons on the right of the header, Jellyfin's
+        // own (and other plugins') and custom tabs placed there. Same key
+        // format as TabOrder; native buttons are matched on their label
+        // (aria-label or title). Empty keeps custom buttons before them.
+        public string[] HeaderIconOrder { get; set; } = Array.Empty<string>();
     }
 
     public class TabConfig

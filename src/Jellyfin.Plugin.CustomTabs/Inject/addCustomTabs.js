@@ -10,6 +10,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
         configs: null,
         configPromise: null,
         tabOrder: [],
+        headerIconOrder: [],
         modernObserver: null,
         modernPending: false,
         modernMutating: false,
@@ -98,9 +99,15 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     accept: 'application/json'
                 }
             }).then((order) => {
-                this.tabOrder = Array.isArray(order) ? order : [];
+                // { Tabs, HeaderIcons }; casing depends on the server's JSON settings
+                order = order || {};
+                const tabs = order.Tabs || order.tabs;
+                const icons = order.HeaderIcons || order.headerIcons;
+                this.tabOrder = Array.isArray(tabs) ? tabs : [];
+                this.headerIconOrder = Array.isArray(icons) ? icons : [];
             }).catch(() => {
                 this.tabOrder = [];
+                this.headerIconOrder = [];
             });
         },
 
@@ -385,9 +392,107 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 console.log(`CustomTabs: Added ${id} to the header`);
             });
 
-            const anchor = Array.from(headerRight.children)
-                .find((el) => !el.matches('[id^="customTabHeaderButton_"]'));
-            this.keepBefore(headerRight, '[id^="customTabHeaderButton_"]', anchor);
+            this.recordHeaderIcons(headerRight);
+            this.arrangeHeaderIcons(headerRight);
+        },
+
+        // --- Right-hand header order --------------------------------------
+        // Native buttons are matched on their accessible label. The settings
+        // page cannot know which buttons a header has (Jellyfin's own and
+        // other plugins'), so the labels seen here are kept in this browser's
+        // storage, where the settings page (same origin) can list them.
+
+        headerIconsStorageKey: 'customTabs.headerIcons',
+
+        nativeButtonLabel: function(el) {
+            const labelled = el.matches('[aria-label], [title]') ? el : el.querySelector('[aria-label], [title]');
+            if (!labelled) {
+                return '';
+            }
+
+            return (labelled.getAttribute('aria-label') || labelled.getAttribute('title') || '').trim();
+        },
+
+        isOurHeaderButton: function(el) {
+            return (el.id || '').indexOf('customTabHeaderButton_') === 0;
+        },
+
+        headerIconKey: function(el) {
+            if (this.isOurHeaderButton(el)) {
+                const config = this.configs && this.configs[parseInt(el.id.replace(/\D+/g, ''), 10)];
+                return config && config.Id ? `custom:${config.Id}`.toLowerCase() : null;
+            }
+
+            const label = this.nativeButtonLabel(el);
+            return label ? `stock:${this.normaliseLabel(label)}` : null;
+        },
+
+        recordHeaderIcons: function(container) {
+            const labels = [];
+            Array.from(container.children).forEach((el) => {
+                if (this.isOurHeaderButton(el) || !el.getClientRects().length) {
+                    return; // ours, or hidden (e.g. SyncPlay when unavailable)
+                }
+                const label = this.nativeButtonLabel(el);
+                if (label && labels.indexOf(label) === -1) {
+                    labels.push(label);
+                }
+            });
+
+            if (!labels.length) {
+                return;
+            }
+
+            try {
+                const json = JSON.stringify(labels);
+                if (window.localStorage.getItem(this.headerIconsStorageKey) !== json) {
+                    window.localStorage.setItem(this.headerIconsStorageKey, json);
+                }
+            } catch (e) {
+                // Storage unavailable (private mode); the settings page then
+                // only lists custom header buttons
+            }
+        },
+
+        // Without a saved order, custom buttons sit in front of the native
+        // ones. With one, listed buttons follow it; custom buttons it does not
+        // mention go first and unlabelled native ones (e.g. some avatars) last.
+        arrangeHeaderIcons: function(container) {
+            const children = Array.from(container.children);
+            if (!this.headerIconOrder || !this.headerIconOrder.length) {
+                const anchor = children.find((el) => !this.isOurHeaderButton(el));
+                this.keepBefore(container, '[id^="customTabHeaderButton_"]', anchor);
+                return;
+            }
+
+            const rank = new Map(this.headerIconOrder.map((key, i) => [String(key).toLowerCase(), i]));
+            const ranked = [];
+            const unrankedOurs = [];
+            const unrankedNative = [];
+            children.forEach((el, position) => {
+                const key = this.headerIconKey(el);
+                const r = key ? rank.get(key) : undefined;
+                if (r !== undefined) {
+                    ranked.push({ el, r, position });
+                } else if (this.isOurHeaderButton(el)) {
+                    unrankedOurs.push(el);
+                } else {
+                    unrankedNative.push(el);
+                }
+            });
+
+            ranked.sort((a, b) => a.r - b.r || a.position - b.position);
+            const desired = unrankedOurs.concat(ranked.map((entry) => entry.el), unrankedNative);
+            if (desired.every((el, i) => children[i] === el)) {
+                return;
+            }
+
+            desired.forEach((el, i) => {
+                const current = container.children[i];
+                if (current !== el) {
+                    container.insertBefore(el, current);
+                }
+            });
         },
 
         // The native icon buttons on the right of the modern header, i.e. the
@@ -419,10 +524,6 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 .map((config, i) => ({ config, i }))
                 .filter((entry) => this.isRightPlacement(entry.config));
 
-            if (!wanted.length) {
-                return;
-            }
-
             const native = this.getModernHeaderIconButtons();
             // Prefer a plain icon button over the avatar as the style source
             const template = native.find((el) => el.querySelector('svg')) || native[0];
@@ -453,9 +554,10 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 console.log(`CustomTabs: Added ${id} to the modern header`);
             });
 
-            const anchor = Array.from(container.children)
-                .find((el) => !el.matches('[id^="customTabHeaderButton_"]'));
-            this.keepBefore(container, '[id^="customTabHeaderButton_"]', anchor);
+            // Runs even with no custom header buttons, so Jellyfin's own icons
+            // can be reordered and listed on the settings page
+            this.recordHeaderIcons(container);
+            this.arrangeHeaderIcons(container);
         },
 
         // --- Jellyfin 12 Modern layout ---------------------------------------

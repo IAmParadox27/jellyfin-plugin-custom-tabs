@@ -19,9 +19,10 @@ namespace Jellyfin.Plugin.CustomTabs.Controller
 
         [Authorize]
         [HttpGet("Order")]
-        public ActionResult<string[]> GetTabOrder()
+        public ActionResult GetTabOrder()
         {
-            return Ok(CustomTabsPlugin.Instance.Configuration.TabOrder);
+            PluginConfiguration config = CustomTabsPlugin.Instance.Configuration;
+            return Ok(new { Tabs = config.TabOrder, HeaderIcons = config.HeaderIconOrder });
         }
 
         // Admin only: the raw image bytes are the request body.

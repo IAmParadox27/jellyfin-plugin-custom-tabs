@@ -21,8 +21,14 @@
         <form class="customTabsConfigurationForm">
             <div class="customTabOrderSection">
                 <h2 class="sectionTitle">Tab order</h2>
-                <div class="fieldDescription">Number the tabs in the order they should appear in the header, Jellyfin's own tabs included. Change a number or use the arrows. Applies to the newer header layout, where libraries appear as tabs; in the classic layout custom tabs always come after Home and Favorites. Tabs shown as header icons on the right are not listed.</div>
-                <ol id="tabOrderList" class="customTabOrderList"></ol>
+                <div class="fieldDescription">Number the tabs in the order they should appear in the header, Jellyfin's own tabs included. Change a number or use the arrows. Applies to the newer header layout, where libraries appear as tabs; in the classic layout custom tabs always come after Home and Favorites. Tabs set to Header icons (right) are ordered in the next list.</div>
+                <ol id="tabOrderList" class="customTabOrderList" data-list="tabs"></ol>
+            </div>
+            <div class="customTabOrderSection">
+                <h2 class="sectionTitle">Header icon order</h2>
+                <div class="fieldDescription">Number the icon buttons on the right of the header, Jellyfin's own (and other plugins') together with tabs set to Header icons (right). Jellyfin's icons are listed once you have opened the Jellyfin home page in this browser with this version of the plugin installed. Icons without a name, such as some user avatars, always stay at the end.</div>
+                <ol id="headerIconOrderList" class="customTabOrderList" data-list="icons"></ol>
+                <div class="fieldDescription" data-id="headerIconsHint" style="display:none;">No Jellyfin icons found yet. Open the Jellyfin home page in this browser, then come back to this page.</div>
             </div>
             <h2 class="sectionTitle">Tabs</h2>
             <div class="customTabListActions">
@@ -184,7 +190,8 @@
                     Dashboard.showLoadingMsg();
                     const config = {
                         Tabs: [],
-                        TabOrder: CustomTabsConfig.order.slice()
+                        TabOrder: CustomTabsConfig.orderLists.tabs.order.slice(),
+                        HeaderIconOrder: CustomTabsConfig.orderLists.icons.order.slice()
                     };
                     
                     // loop over tab configs
@@ -221,10 +228,16 @@
                         .then(function (results) {
                             const config = results[0];
                             CustomTabsConfig.stockNames = ['Home', 'Favorites'].concat(results[1]);
-                            CustomTabsConfig.order = (config.TabOrder || []).slice();
+                            CustomTabsConfig.orderLists.tabs.order = (config.TabOrder || []).slice();
+                            CustomTabsConfig.orderLists.icons.order = (config.HeaderIconOrder || []).slice();
+                            // Draw the order lists once all tabs are in, so new
+                            // entries get their default places
+                            CustomTabsConfig.loading = true;
                             for (var i = 0; i < config.Tabs.length; ++i) {
                                 CustomTabsConfig.addCustomTabConfig(config.Tabs[i]);
                             }
+                            CustomTabsConfig.loading = false;
+                            CustomTabsConfig.renderOrderList();
                         })
                         .catch(function (error) {
                             console.error(error);
@@ -293,26 +306,32 @@
                             CustomTabsConfig.updateCardState(fieldset);
                         }
                     });
-                    document.querySelector("#tabOrderList").addEventListener("change", (event) => {
-                        if (event.target.classList.contains('customTabOrderNumber')) {
-                            const row = event.target.closest('[data-key]');
-                            CustomTabsConfig.moveInOrder(row.getAttribute('data-key'), parseInt(event.target.value, 10) - 1);
-                        }
-                    });
-                    document.querySelector("#tabOrderList").addEventListener("click", (event) => {
-                        const button = event.target.closest('.customTabOrderMove');
-                        if (button) {
-                            const row = button.closest('[data-key]');
-                            const index = CustomTabsConfig.order.indexOf(row.getAttribute('data-key'));
-                            CustomTabsConfig.moveInOrder(row.getAttribute('data-key'), index + parseInt(button.getAttribute('data-step'), 10));
-                        }
+                    document.querySelectorAll(".customTabOrderList").forEach((listElement) => {
+                        const name = listElement.getAttribute('data-list');
+                        listElement.addEventListener("change", (event) => {
+                            if (event.target.classList.contains('customTabOrderNumber')) {
+                                const row = event.target.closest('[data-key]');
+                                CustomTabsConfig.moveInOrder(name, row.getAttribute('data-key'), parseInt(event.target.value, 10) - 1);
+                            }
+                        });
+                        listElement.addEventListener("click", (event) => {
+                            const button = event.target.closest('.customTabOrderMove');
+                            if (button) {
+                                const row = button.closest('[data-key]');
+                                const index = CustomTabsConfig.orderLists[name].order.indexOf(row.getAttribute('data-key'));
+                                CustomTabsConfig.moveInOrder(name, row.getAttribute('data-key'), index + parseInt(button.getAttribute('data-step'), 10));
+                            }
+                        });
                     });
                     CustomTabsConfig.loadConfig();
                 },
                 // --- Tab order -------------------------------------------
                 // Keys: "stock:<label>" for Jellyfin's tabs, matched on their
                 // label in the header, and "custom:<id>" for custom tabs.
-                order: [],
+                orderLists: {
+                    tabs: { element: '#tabOrderList', order: [], entries: function () { return CustomTabsConfig.tabOrderEntries(); } },
+                    icons: { element: '#headerIconOrderList', order: [], entries: function () { return CustomTabsConfig.headerIconEntries(); } }
+                },
                 stockNames: ['Home', 'Favorites'],
                 newId: function () {
                     if (window.crypto && typeof window.crypto.randomUUID === 'function') {
@@ -339,14 +358,13 @@
                             return [];
                         });
                 },
-                // Everything that can be ordered right now: Jellyfin's tabs,
-                // then custom tabs in the tab bar, in their default order
-                orderEntries: function () {
-                    const entries = CustomTabsConfig.stockNames.map(function (name) {
-                        return { key: 'stock:' + name.trim().toLowerCase(), name: name, custom: false, disabled: false };
-                    });
+                stockEntry: function (name) {
+                    return { key: 'stock:' + name.replace(/\s+/g, ' ').trim().toLowerCase(), name: name, custom: false, disabled: false };
+                },
+                customEntries: function (rightPlaced) {
+                    const entries = [];
                     document.querySelectorAll("[data-id=tab-config]").forEach(function (card) {
-                        if (card.querySelector('[data-id=selPlacement]').value === 'Right') {
+                        if ((card.querySelector('[data-id=selPlacement]').value === 'Right') !== rightPlaced) {
                             return;
                         }
                         entries.push({
@@ -358,22 +376,52 @@
                     });
                     return entries;
                 },
+                // Default order: Jellyfin's tabs, then custom tab-bar tabs
+                tabOrderEntries: function () {
+                    return CustomTabsConfig.stockNames.map(CustomTabsConfig.stockEntry)
+                        .concat(CustomTabsConfig.customEntries(false));
+                },
+                // Jellyfin's header icons as last seen by the plugin in this
+                // browser (see recordHeaderIcons in addCustomTabs.js)
+                seenHeaderIcons: function () {
+                    try {
+                        const labels = JSON.parse(window.localStorage.getItem('customTabs.headerIcons') || '[]');
+                        return Array.isArray(labels) ? labels.filter(function (l) { return typeof l === 'string' && l.trim(); }) : [];
+                    } catch (e) {
+                        return [];
+                    }
+                },
+                // Default order: custom header buttons, then Jellyfin's icons
+                headerIconEntries: function () {
+                    const stock = CustomTabsConfig.seenHeaderIcons().map(CustomTabsConfig.stockEntry);
+                    document.querySelector('[data-id=headerIconsHint]').style.display = stock.length ? 'none' : '';
+                    return CustomTabsConfig.customEntries(true).concat(stock);
+                },
+                loading: false,
+                renderOrderList: function () {
+                    if (CustomTabsConfig.loading) {
+                        return;
+                    }
+                    CustomTabsConfig.renderOrder('tabs');
+                    CustomTabsConfig.renderOrder('icons');
+                },
                 // Keeps the saved order for entries that still exist and puts
                 // anything new at the end, then redraws the numbered list
-                renderOrderList: function () {
-                    const entries = CustomTabsConfig.orderEntries();
+                renderOrder: function (listName) {
+                    const state = CustomTabsConfig.orderLists[listName];
+                    const entries = state.entries();
                     const byKey = {};
                     entries.forEach(function (entry) { byKey[entry.key] = entry; });
 
-                    const ordered = CustomTabsConfig.order.filter(function (key) { return byKey[key]; });
+                    const ordered = state.order.filter(function (key) { return byKey[key]; });
                     entries.forEach(function (entry) {
                         if (ordered.indexOf(entry.key) === -1) {
                             ordered.push(entry.key);
                         }
                     });
-                    CustomTabsConfig.order = ordered;
+                    state.order = ordered;
 
-                    const list = document.querySelector('#tabOrderList');
+                    const list = document.querySelector(state.element);
                     list.innerHTML = '';
                     ordered.forEach(function (key, i) {
                         const entry = byKey[key];
@@ -417,20 +465,21 @@
                         list.appendChild(row);
                     });
                 },
-                moveInOrder: function (key, newIndex) {
-                    const order = CustomTabsConfig.order;
+                moveInOrder: function (listName, key, newIndex) {
+                    const state = CustomTabsConfig.orderLists[listName];
+                    const order = state.order;
                     const from = order.indexOf(key);
                     if (from === -1 || isNaN(newIndex)) {
-                        CustomTabsConfig.renderOrderList();
+                        CustomTabsConfig.renderOrder(listName);
                         return;
                     }
 
                     const to = Math.max(0, Math.min(order.length - 1, newIndex));
                     order.splice(from, 1);
                     order.splice(to, 0, key);
-                    CustomTabsConfig.renderOrderList();
+                    CustomTabsConfig.renderOrder(listName);
 
-                    const input = document.querySelector('#tabOrderList [data-key="' + key + '"] .customTabOrderNumber');
+                    const input = document.querySelector(state.element + ' [data-key="' + CSS.escape(key) + '"] .customTabOrderNumber');
                     if (input) {
                         input.focus();
                     }
