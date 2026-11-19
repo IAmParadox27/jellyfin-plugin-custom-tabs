@@ -27,7 +27,8 @@ namespace Jellyfin.Plugin.CustomTabs.Helpers
 
                 string tabTemplate = reader.ReadToEnd();
                 string finalReplacement = "";
-                for (int i = 0; i < CustomTabsPlugin.Instance.Configuration.Tabs.Length; ++i)
+                int enabledTabCount = CustomTabsPlugin.Instance.Configuration.GetEnabledTabs().Length;
+                for (int i = 0; i < enabledTabCount; ++i)
                 {
                     finalReplacement += tabTemplate
                         .Replace("{{tab_id}}", $"customTab_{i}")
