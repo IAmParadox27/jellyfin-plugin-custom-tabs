@@ -81,7 +81,7 @@ Each tab's settings are grouped into **Text**, **Placement**, **Icon** and **Con
 
 ### Tab order
 
-Every row in both order lists has a switch to show or hide that tab or icon, Jellyfin's own included. For a custom tab the switch is the same as its **Enabled** setting. The pinned user menu is always shown.
+Every row in both order lists has a switch to show or hide that tab or icon in the header, Jellyfin's own included. For a custom tab the switch is the same as its **Enabled** setting, which turns it off everywhere. Whether a tab appears in the side menu (the menu that opens from the menu button on small screens) is set separately, with **Show in the side menu** in the tab's ▾ panel. The pinned user menu is always shown.
 
 Each row in **Tab order** also has a ▾ button that opens that tab's settings. For Jellyfin's own tabs you can change the text, hide the text (the name becomes the tooltip), change the icon to a Material icon, an image URL or an uploaded image, or hide the icon. A renamed tab keeps its place in the order and its show/hide setting. These changes apply to the newer header layout; the side menu on small screens keeps the text. For a custom tab the panel links to its card, where those settings live.
 

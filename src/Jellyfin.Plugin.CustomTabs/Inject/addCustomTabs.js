@@ -12,6 +12,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
         tabOrder: [],
         headerIconOrder: [],
         hiddenTabs: [],
+        hiddenDrawerTabs: [],
         tabOverrides: {},
         hiddenHeaderIcons: [],
         modernObserver: null,
@@ -113,6 +114,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 const hiddenIcons = order.HiddenHeaderIcons || order.hiddenHeaderIcons;
                 this.hiddenTabs = Array.isArray(hiddenTabs) ? hiddenTabs.map((k) => String(k).toLowerCase()) : [];
                 this.hiddenHeaderIcons = Array.isArray(hiddenIcons) ? hiddenIcons.map((k) => String(k).toLowerCase()) : [];
+                const hiddenDrawer = order.HiddenDrawerTabs || order.hiddenDrawerTabs;
+                this.hiddenDrawerTabs = Array.isArray(hiddenDrawer) ? hiddenDrawer.map((k) => String(k).toLowerCase()) : [];
                 const overrides = order.TabOverrides || order.tabOverrides;
                 this.tabOverrides = {};
                 (Array.isArray(overrides) ? overrides : []).forEach((o) => {
@@ -131,6 +134,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 this.tabOrder = [];
                 this.headerIconOrder = [];
                 this.hiddenTabs = [];
+                this.hiddenDrawerTabs = [];
                 this.hiddenHeaderIcons = [];
             });
         },
@@ -1036,7 +1040,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // Renames, icon changes and hiding for the built-in items of a list
         // that holds no custom tabs, without reordering it
         applyStockChanges: function(container) {
-            const hidden = this.hiddenTabs || [];
+            const hidden = this.hiddenDrawerTabs || [];
             const isDrawer = container.tagName === 'UL' || container.classList.contains('MuiList-root');
             Array.from(container.children).forEach((el) => {
                 // Only navigation items: skip headings, dividers and nested lists
@@ -1253,11 +1257,17 @@ if (typeof window.customTabsPlugin == 'undefined') {
             const isOurs = (el) => el.matches(selector) || !!el.querySelector(selector);
             const children = Array.from(container.children);
 
-            // Jellyfin's own tabs switched off or changed on the settings page
-            const hidden = this.hiddenTabs || [];
+            // Tabs switched off or changed on the settings page. The header
+            // and the side menu (drawer) each have their own hidden list; in
+            // the drawer it covers custom tabs too.
             const isDrawer = container.tagName === 'UL' || container.classList.contains('MuiList-root');
+            const hidden = (isDrawer ? this.hiddenDrawerTabs : this.hiddenTabs) || [];
             children.forEach((el) => {
                 if (isOurs(el)) {
+                    if (isDrawer) {
+                        const customKey = this.tabKey(el, selector);
+                        el.classList.toggle('customTabsHidden', !!customKey && hidden.indexOf(customKey) !== -1);
+                    }
                     return;
                 }
                 const key = this.tabKey(el, selector);

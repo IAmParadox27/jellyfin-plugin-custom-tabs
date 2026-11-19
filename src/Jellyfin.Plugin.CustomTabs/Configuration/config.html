@@ -21,7 +21,7 @@
         <form class="customTabsConfigurationForm">
             <div class="customTabOrderSection">
                 <h2 class="sectionTitle">Tab order</h2>
-                <div class="fieldDescription">Number the tabs in the order they should appear in the header, Jellyfin's own tabs included. Change a number or use the arrows. Use the switch at the start of a row to show or hide that tab; for a custom tab it is the same as its Enabled switch. Applies to the newer header layout, where libraries appear as tabs; in the classic layout custom tabs always come after Home and Favorites. Tabs set to Header icons (right) are ordered in the next list.</div>
+                <div class="fieldDescription">Number the tabs in the order they should appear in the header, Jellyfin's own tabs included. Change a number or use the arrows. Use the switch at the start of a row to show or hide that tab in the header (for a custom tab it is the same as its Enabled switch), and the ▾ button for its other settings, including whether it appears in the side menu. Applies to the newer header layout, where libraries appear as tabs; in the classic layout custom tabs always come after Home and Favorites. Tabs set to Header icons (right) are ordered in the next list.</div>
                 <ol id="tabOrderList" class="customTabOrderList" data-list="tabs"></ol>
             </div>
             <div class="customTabOrderSection">
@@ -214,6 +214,7 @@
                         HeaderIconOrder: CustomTabsConfig.orderLists.icons.order.slice(),
                         HiddenTabs: CustomTabsConfig.orderLists.tabs.hidden.slice(),
                         HiddenHeaderIcons: CustomTabsConfig.orderLists.icons.hidden.slice(),
+                        HiddenDrawerTabs: CustomTabsConfig.orderLists.tabs.drawerHidden.slice(),
                         TabOverrides: Object.keys(CustomTabsConfig.tabOverrides).map(function (key) {
                             const o = CustomTabsConfig.tabOverrides[key];
                             return { Key: key, Title: (o.Title || '').trim(), Icon: (o.Icon || '').trim(), ImageUrl: (o.ImageUrl || '').trim(), HideTitle: !!o.HideTitle, HideIcon: !!o.HideIcon };
@@ -258,6 +259,7 @@
                             CustomTabsConfig.orderLists.icons.order = (config.HeaderIconOrder || []).slice();
                             CustomTabsConfig.orderLists.tabs.hidden = (config.HiddenTabs || []).map(function (k) { return String(k).toLowerCase(); });
                             CustomTabsConfig.orderLists.icons.hidden = (config.HiddenHeaderIcons || []).map(function (k) { return String(k).toLowerCase(); });
+                            CustomTabsConfig.orderLists.tabs.drawerHidden = (config.HiddenDrawerTabs || []).map(function (k) { return String(k).toLowerCase(); });
                             CustomTabsConfig.tabOverrides = {};
                             (config.TabOverrides || []).forEach(function (o) {
                                 if (o && o.Key) {
@@ -378,6 +380,19 @@
                         };
                         listElement.addEventListener("input", onOverride);
                         listElement.addEventListener("change", (event) => {
+                            if (event.target.hasAttribute('data-drawer-toggle')) {
+                                const key = event.target.getAttribute('data-drawer-toggle');
+                                const list = CustomTabsConfig.orderLists.tabs.drawerHidden;
+                                const at = list.indexOf(key);
+                                if (event.target.checked && at !== -1) list.splice(at, 1);
+                                if (!event.target.checked && at === -1) list.push(key);
+                                const rowName = listElement.querySelector('[data-key="' + CSS.escape(key) + '"] .customTabOrderName');
+                                const entry = CustomTabsConfig.orderLists.tabs.entries().find(function (e) { return e.key === key; });
+                                if (rowName && entry) {
+                                    rowName.textContent = CustomTabsConfig.rowName('tabs', entry, !rowName.closest('[data-key]').classList.contains('isDisabled'));
+                                }
+                                return;
+                            }
                             if (event.target.hasAttribute('data-ov-file')) {
                                 const input = event.target;
                                 const file = input.files && input.files[0];
@@ -449,7 +464,7 @@
                 // Keys: "stock:<label>" for Jellyfin's tabs, matched on their
                 // label in the header, and "custom:<id>" for custom tabs.
                 orderLists: {
-                    tabs: { element: '#tabOrderList', order: [], hidden: [], expanded: [], entries: function () { return CustomTabsConfig.tabOrderEntries(); } },
+                    tabs: { element: '#tabOrderList', order: [], hidden: [], drawerHidden: [], expanded: [], entries: function () { return CustomTabsConfig.tabOrderEntries(); } },
                     icons: { element: '#headerIconOrderList', order: [], hidden: [], entries: function () { return CustomTabsConfig.headerIconEntries(); } }
                 },
                 stockNames: ['Home', 'Favorites'],
@@ -656,7 +671,8 @@
                     if (o && o.HideTitle) notes.push('no text');
                     if (o && o.HideIcon) notes.push('no icon');
                     else if (o && (o.Icon || o.ImageUrl)) notes.push('new icon');
-                    if (!shown) notes.push('hidden');
+                    if (!shown) notes.push(entry.custom ? 'disabled' : 'hidden in header');
+                    if (listName === 'tabs' && CustomTabsConfig.orderLists.tabs.drawerHidden.indexOf(entry.key) !== -1) notes.push('not in side menu');
                     return text + (notes.length ? ' (' + notes.join(', ') + ')' : '');
                 },
                 // The panel under an opened Tab order row
@@ -666,6 +682,7 @@
                     li.setAttribute('data-details-for', key);
 
                     if (entry.custom) {
+                        li.appendChild(CustomTabsConfig.drawerToggle(key));
                         const note = document.createElement('div');
                         note.className = 'fieldDescription';
                         note.textContent = 'This is a custom tab. Its text, icon and content are set in its card in the Tabs section below.';
@@ -717,11 +734,32 @@
                         CustomTabsConfig.withUpload(field('Image URL', 'ImageUrl', 'text', 'https://example.com/logo.png', 'Used instead of the Material icon when both are set: a web address, or upload a file below.'), o.ImageUrl),
                         field('Hide icon', 'HideIcon', 'checkbox')
                     );
+                    li.appendChild(CustomTabsConfig.drawerToggle(key));
                     const scope = document.createElement('div');
                     scope.className = 'fieldDescription';
-                    scope.textContent = 'Applies to the newer header layout. The side menu on small screens keeps the text.';
+                    scope.textContent = 'Applies to the newer header layout. The side menu on small screens keeps the text. The switch at the start of the row shows or hides the tab in the header only.';
                     li.appendChild(scope);
                     return li;
+                },
+                // "Show in the side menu" checkbox for a Tab order panel
+                drawerToggle: function (key) {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'customTabDetailField';
+                    const label = document.createElement('label');
+                    label.className = 'customTabCheckboxLabel';
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'customTabCheckbox';
+                    input.setAttribute('data-drawer-toggle', key);
+                    input.checked = CustomTabsConfig.orderLists.tabs.drawerHidden.indexOf(key) === -1;
+                    const span = document.createElement('span');
+                    span.textContent = 'Show in the side menu';
+                    label.append(input, span);
+                    const help = document.createElement('div');
+                    help.className = 'fieldDescription';
+                    help.textContent = 'The menu that opens from the menu button, which lists the tabs on small screens.';
+                    wrap.append(label, help);
+                    return wrap;
                 },
                 // Adds the icon browser link to a Material icon field's help
                 withIconLink: function (wrap) {

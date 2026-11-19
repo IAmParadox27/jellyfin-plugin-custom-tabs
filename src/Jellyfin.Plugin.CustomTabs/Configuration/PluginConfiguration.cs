@@ -22,9 +22,14 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         // (aria-label or title). Empty keeps custom buttons before them.
         public string[] HeaderIconOrder { get; set; } = Array.Empty<string>();
 
-        // Jellyfin's own tabs and header icons the admin has switched off,
-        // as "stock:<label>" keys. Custom tabs use their Enabled flag instead.
+        // Jellyfin's own tabs and header icons the admin has switched off in
+        // the header, as "stock:<label>" keys. Custom tabs use their Enabled
+        // flag instead.
         public string[] HiddenTabs { get; set; } = Array.Empty<string>();
+
+        // Tabs left out of the side menu (the drawer on narrow screens), as
+        // "stock:<label>" or "custom:<Id>" keys; independent of HiddenTabs
+        public string[] HiddenDrawerTabs { get; set; } = Array.Empty<string>();
 
         public string[] HiddenHeaderIcons { get; set; } = Array.Empty<string>();
 
