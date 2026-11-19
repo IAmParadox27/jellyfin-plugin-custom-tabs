@@ -48,6 +48,15 @@
         </form>
     </div>
     <style>
+        /* Setting descriptions shown as popups from an "info" icon */
+        #customTabsConfigurationPage .customTabInfo { position: relative; display: inline-flex; align-items: center; vertical-align: middle; margin-left: .35em; cursor: help; opacity: .7; font-size: 1rem; line-height: 1; font-weight: normal; }
+        #customTabsConfigurationPage .customTabInfo:hover, #customTabsConfigurationPage .customTabInfo:focus-visible, #customTabsConfigurationPage .customTabInfo.open { opacity: 1; }
+        #customTabsConfigurationPage .customTabInfo:focus-visible { outline: 2px solid #00a4dc; outline-offset: 2px; border-radius: 50%; }
+        #customTabsConfigurationPage .customTabInfo > .material-icons { font-size: 1.15em; }
+        #customTabsConfigurationPage .customTabInfoPopup { display: none; position: absolute; left: -.5em; top: calc(100% + 6px); z-index: 1000; width: max-content; max-width: min(24em, 80vw); padding: .6em .8em; background: #202020; color: #eee; border: 1px solid rgba(255,255,255,.2); border-radius: .4em; box-shadow: 0 4px 14px rgba(0,0,0,.5); font-size: .85rem; line-height: 1.45; text-align: left; white-space: normal; cursor: auto; }
+        #customTabsConfigurationPage .customTabInfo:hover > .customTabInfoPopup, #customTabsConfigurationPage .customTabInfo:focus-within > .customTabInfoPopup, #customTabsConfigurationPage .customTabInfo.open > .customTabInfoPopup { display: block; }
+        #customTabsConfigurationPage .customTabInfoPopup .fieldDescription { margin: 0; padding: 0; color: inherit; font-size: inherit; }
+        #customTabsConfigurationPage .customTabInfoPopup .fieldDescription + .fieldDescription { margin-top: .5em; }
         #customTabsConfigurationPage .customTabCard { border: 1px solid rgba(255,255,255,.15); border-radius: .5em; padding: 1em 1.5em 1.5em; margin: 0 0 2em; }
         #customTabsConfigurationPage .customTabCardHeader { display: flex; align-items: center; justify-content: space-between; gap: 1em; flex-wrap: wrap; }
         #customTabsConfigurationPage .customTabCardHeader h2 { margin: .3em 0; }
@@ -307,7 +316,142 @@
                             Dashboard.hideLoadingMsg();
                         });
                 },
+                // --- Info popups --------------------------------------------
+                // Each setting's description moves into a popup on an "info"
+                // icon after its label (a section's next to its heading).
+                // Descriptions appear as cards and panels are drawn, so this
+                // runs whenever the page changes.
+                // The label of the setting a description belongs to: the
+                // nearest label before it, looking at earlier siblings and then
+                // outwards (so a note under the upload buttons goes with Image
+                // URL, and a card's first note with its Enabled switch); a
+                // heading before it for a section's description
+                infoTargetFor: function (description) {
+                    const labelSelector = 'label, .inputLabel, .selectLabel';
+                    const page = document.querySelector('#customTabsConfigurationPage');
+                    let scope = description;
+                    while (scope && scope !== page) {
+                        let el = scope.previousElementSibling;
+                        while (el) {
+                            if (!el.matches('.customTabInfoPopup, input, textarea, select, img')) {
+                                if (el.matches(labelSelector) && el.textContent.trim()) {
+                                    return el;
+                                }
+                                if (el.matches('h1, h2, h3')) {
+                                    return el;
+                                }
+                                const inner = Array.from(el.querySelectorAll(labelSelector))
+                                    .filter(function (l) { return l.textContent.trim() && !l.closest('.customTabInfoPopup'); }).pop();
+                                if (inner) {
+                                    return inner;
+                                }
+                            }
+                            el = el.previousElementSibling;
+                        }
+                        scope = scope.parentElement;
+                    }
+                    return null;
+                },
+                infoize: function () {
+                    const page = document.querySelector('#customTabsConfigurationPage');
+                    if (!page) {
+                        return;
+                    }
+                    page.querySelectorAll('.fieldDescription').forEach(function (description) {
+                        if (description.closest('.customTabInfoPopup, template') || description.getAttribute('data-id') === 'headerIconsHint'
+                            || !description.textContent.trim()) {
+                            return;
+                        }
+                        const target = CustomTabsConfig.infoTargetFor(description);
+                        if (!target) {
+                            return;
+                        }
+
+                        let info = target.querySelector(':scope > .customTabInfo');
+                        if (!info) {
+                            info = document.createElement('span');
+                            info.className = 'customTabInfo';
+                            info.setAttribute('role', 'button');
+                            info.setAttribute('tabindex', '0');
+                            info.setAttribute('aria-label', 'About this setting');
+                            info.setAttribute('aria-expanded', 'false');
+                            const icon = document.createElement('span');
+                            icon.className = 'material-icons info';
+                            icon.setAttribute('aria-hidden', 'true');
+                            const popup = document.createElement('span');
+                            popup.className = 'customTabInfoPopup';
+                            popup.setAttribute('role', 'tooltip');
+                            popup.id = 'customTabInfo' + (++CustomTabsConfig.infoCount);
+                            info.setAttribute('aria-describedby', popup.id);
+                            info.append(icon, popup);
+                            target.appendChild(info);
+                        }
+                        info.querySelector('.customTabInfoPopup').appendChild(description);
+                    });
+                },
+                infoCount: 0,
+                watchInfo: function (page) {
+                    let pending = false;
+                    new MutationObserver(function () {
+                        if (pending) {
+                            return;
+                        }
+                        pending = true;
+                        requestAnimationFrame(function () {
+                            pending = false;
+                            CustomTabsConfig.infoize();
+                        });
+                    }).observe(page, { childList: true, subtree: true });
+
+                    // Tap or Enter opens a popup (for touch screens); clicking
+                    // elsewhere or Escape closes it. Inside a label the click must
+                    // not toggle the label's checkbox.
+                    // Listen on the document, so a tap anywhere closes an open popup
+                    document.addEventListener('click', function (event) {
+                        if (!document.body.contains(page)) {
+                            return;
+                        }
+                        const info = event.target.closest('.customTabInfo');
+                        page.querySelectorAll('.customTabInfo.open').forEach(function (other) {
+                            if (other !== info) {
+                                other.classList.remove('open');
+                                other.setAttribute('aria-expanded', 'false');
+                            }
+                        });
+                        if (!info || event.target.closest('a')) {
+                            return;
+                        }
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!event.target.closest('.customTabInfoPopup')) {
+                            const open = !info.classList.contains('open');
+                            info.classList.toggle('open', open);
+                            info.setAttribute('aria-expanded', String(open));
+                        }
+                    }, true);
+                    page.addEventListener('keydown', function (event) {
+                        const info = event.target.closest && event.target.closest('.customTabInfo');
+                        if (event.key === 'Escape') {
+                            page.querySelectorAll('.customTabInfo.open').forEach(function (other) {
+                                other.classList.remove('open');
+                                other.setAttribute('aria-expanded', 'false');
+                            });
+                            if (info) info.blur();
+                        } else if (info && (event.key === 'Enter' || event.key === ' ')) {
+                            event.preventDefault();
+                            const open = !info.classList.contains('open');
+                            info.classList.toggle('open', open);
+                            info.setAttribute('aria-expanded', String(open));
+                        }
+                    });
+                },
                 init: function () {
+                    const page = document.querySelector('#customTabsConfigurationPage');
+                    if (page && !page.dataset.infoWatched) {
+                        page.dataset.infoWatched = '1';
+                        CustomTabsConfig.watchInfo(page);
+                        CustomTabsConfig.infoize();
+                    }
                     CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
                     CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
                     document.querySelector("#btnExpandAll").addEventListener("click", () => CustomTabsConfig.setAllCollapsed(false));
