@@ -19,7 +19,7 @@ Hey all! Things are changing with my plugins are more and more people start to u
 As with a lot of devs, I am very momentum based in my personal life coding and there are often times when these projects may appear dormant, I assure you now that I don't plan to let these projects go stale for a long time, there just might be times where there isn't an update or response for a couple weeks, but I'll try to keep that better than it has been. With all new releases to Jellyfin I will be updating as soon as possible, I have already made a start on 10.11.0 and will release an update to my plugins hopefully not long after that version is officially released!
 
 ## Introduction
-Custom Tabs is a Jellyfin plugin which allows users to add custom tabs to the horizontal bar at the top of the web client. A common use for this it to add a "Requests" tab.
+Custom Tabs is a Jellyfin plugin which allows users to add custom tabs, reorder all tabs, and change icons for all tabs to the horizontal bar at the top of the web client. A common use for this it to add a "Requests" tab.
 
 The plugin has been inspired by, and makes use of the work done by, <a href="https://github.com/BobHasNoSoul/jellyfin-mods?tab=readme-ov-file#add-requests-tab">BobHasNoSoul</a>.
 
