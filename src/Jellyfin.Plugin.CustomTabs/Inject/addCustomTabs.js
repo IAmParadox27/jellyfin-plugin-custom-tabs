@@ -576,8 +576,12 @@ if (typeof window.customTabsPlugin == 'undefined') {
             const toolbar = document.querySelector('header.MuiAppBar-root .MuiToolbar-root');
             const toolbarChildren = toolbar ? Array.from(toolbar.children).map((child) => describe(child)
                 + ' [' + Array.from(child.querySelectorAll('button, a[href]')).map((c) => this.nativeButtonLabel(c) || '?').join(', ') + ']') : [];
+            const tabBar = this.getModernBar();
+            const tabBarChildren = tabBar ? Array.from(tabBar.children).map((child) => describe(child)
+                + ' [' + (this.nativeButtonLabel(child) || child.textContent.trim().slice(0, 30)) + ']') : [];
             console.log('CustomTabs header debug', {
                 toolbarChildren: toolbarChildren,
+                tabBarChildren: tabBarChildren,
                 layout: group ? 'modern' : (legacy ? 'legacy' : 'not found'),
                 tabBarFound: !!this.getModernBar(),
                 savedHeaderIconOrder: this.headerIconOrder,
@@ -600,8 +604,11 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 return null;
             }
 
+            // Search the whole app bar: a plugin can put its icons next to the
+            // toolbar rather than inside it
+            const root = toolbar.closest('header.MuiAppBar-root') || toolbar;
             const selector = 'button, a[href], [role="button"]';
-            const allControls = Array.from(toolbar.querySelectorAll(selector))
+            const allControls = Array.from(root.querySelectorAll(selector))
                 .filter((el) => !(el.parentElement && el.parentElement.closest(selector)));
             let controls = allControls;
 
@@ -614,8 +621,10 @@ if (typeof window.customTabsPlugin == 'undefined') {
             // ever moved.
             const bar = this.getModernBar();
             const beforeBar = (el) => bar && (bar.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING);
+            // Inside the tab bar only links are tabs; a plugin's icon buttons
+            // can end up in there too (Jellyfin Enhanced's tray can)
             const isLeftControl = (el) => this.isHeaderMenuButton(el) || this.isHeaderBackButton(el)
-                || this.isHomeLink(el) || (bar && bar.contains(el))
+                || this.isHomeLink(el) || (bar && bar.contains(el) && !this.isIconControl(el))
                 || (beforeBar(el) && this.isHeaderLogo(el));
             controls = allControls.filter((el) => !isLeftControl(el));
 
@@ -631,7 +640,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
             const controlCount = (el) => allControls.filter((c) => el.contains(c)).length;
             const items = controls.map((el) => {
                 let item = el;
-                while (item.parentElement && item.parentElement !== toolbar && controlCount(item.parentElement) === 1) {
+                while (item.parentElement && item.parentElement !== toolbar && item.parentElement !== root
+                    && item.parentElement !== bar && controlCount(item.parentElement) === 1) {
                     item = item.parentElement;
                 }
                 return item;
@@ -914,6 +924,16 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
             const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
             return /^(open |toggle |show )?(the )?(main |navigation )?(menu|navigation|drawer|sidebar)$/i.test(label);
+        },
+
+        // An icon button rather than a tab link: tab links (and the logo) are
+        // text links, while header icons are buttons or icon-button links
+        isIconControl: function(el) {
+            if (el.id && (el.id.indexOf('customTabButton_') === 0 || el.id.indexOf('customTabDrawerButton_') === 0)) {
+                return false;
+            }
+            return el.tagName === 'BUTTON'
+                || el.matches('.MuiIconButton-root, .headerButton, [role="button"]');
         },
 
         // The back button the modern header shows on pages other than home
