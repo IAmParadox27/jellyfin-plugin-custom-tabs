@@ -588,7 +588,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 + '.customTabHeaderButton .customTabImage{height:24px;max-width:48px;display:block;}'
                 + '.customTabHeaderButton .customTabLabel{font-size:.875rem;white-space:nowrap;}'
                 + '.customTabHeaderButton[aria-current="page"]{background-color:rgba(255,255,255,.12);}'
-                + '.customTabsHidden{display:none !important;}'
+                + '.customTabsHidden,.customTabsEmptyWrapper{display:none !important;}'
                 + '.customTabsIconOnly{margin-left:0 !important;margin-right:0 !important;}'
                 + '.customTabsOverrideIcon.material-icons{font-size:20px;}'
                 // Default icons are masks filled with the text colour
@@ -1424,21 +1424,70 @@ if (typeof window.customTabsPlugin == 'undefined') {
         pinUserMenu: function(container, root) {
             const controls = Array.from(root.querySelectorAll('button, a[href], [role="button"]'));
             const userMenu = controls.find((el) => this.isUserMenuControl(el));
-            if (!userMenu || !container.contains(userMenu)) {
+            if (!userMenu) {
                 return;
             }
 
-            // Move the outermost wrapper inside the row that holds only it
-            let item = userMenu;
-            while (item.parentElement && item.parentElement !== container) {
-                item = item.parentElement;
+            if (container.contains(userMenu)) {
+                // Move the outermost wrapper inside the row that holds only it
+                let item = userMenu;
+                while (item.parentElement && item.parentElement !== container) {
+                    item = item.parentElement;
+                }
+                if (item.parentElement === container) {
+                    item.classList.add('customTabsPinnedRight');
+                    container.after(item);
+                }
             }
-            if (item.parentElement !== container) {
+
+            this.keepUserMenuAtEnd(userMenu);
+        },
+
+        // The user menu belongs at the right edge of the header. Other
+        // plugins can add their own wrappers to the header after it, and once
+        // their icons are gathered with Jellyfin's those wrappers are left
+        // empty but can still take up space (padding or margins), which
+        // pushes the user menu in from the edge. Empty wrappers are collapsed
+        // and the user menu is kept last.
+        keepUserMenuAtEnd: function(userMenu) {
+            // Newer header only; the classic header keeps its own layout
+            const row = userMenu.closest('header.MuiAppBar-root .MuiToolbar-root');
+            if (!row) {
                 return;
             }
 
-            item.classList.add('customTabsPinnedRight');
-            container.after(item);
+            let top = userMenu;
+            while (top.parentElement && top.parentElement !== row) {
+                top = top.parentElement;
+            }
+            if (top.parentElement !== row) {
+                return;
+            }
+
+            const bar = this.getModernBar();
+            Array.from(row.children).forEach((child) => {
+                if (child === top || child === bar || child.matches('button, a, [role="button"], style, script')) {
+                    return;
+                }
+                const visible = Array.from(child.children).some((el) => !el.classList.contains('customTabsHidden')
+                    && el.tagName !== 'STYLE' && el.tagName !== 'SCRIPT');
+                // A wrapper that stretches (Jellyfin's own icon group) is what
+                // pushes the icons right, so it stays even when empty
+                const empty = !visible && !child.textContent.trim()
+                    && getComputedStyle(child).flexGrow === '0';
+                if (empty) {
+                    child.classList.add('customTabsEmptyWrapper');
+                } else if (child.classList.contains('customTabsEmptyWrapper')) {
+                    child.classList.remove('customTabsEmptyWrapper');
+                }
+            });
+
+            const after = Array.from(row.children).slice(Array.prototype.indexOf.call(row.children, top) + 1)
+                .filter((el) => el.tagName !== 'STYLE' && el.tagName !== 'SCRIPT');
+            if (after.length) {
+                row.appendChild(top);
+            }
+            top.classList.add('customTabsPinnedRight');
         },
 
         // An icon button rather than a tab link: tab links (and the logo) are
