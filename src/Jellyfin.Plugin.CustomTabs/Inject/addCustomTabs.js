@@ -352,24 +352,6 @@ if (typeof window.customTabsPlugin == 'undefined') {
             window.location.hash = `#/home?tab=${index + 2}`;
         },
 
-        // Keeps our buttons together, directly in front of the first native
-        // button, in case React re-renders the group around them.
-        keepBefore: function(container, selector, anchor) {
-            const ours = Array.from(container.children).filter((el) => el.matches(selector));
-            if (!ours.length || !anchor || anchor.parentNode !== container) {
-                return;
-            }
-
-            const inPlace = ours.every((el, i) => {
-                const next = i + 1 < ours.length ? ours[i + 1] : anchor;
-                return el.nextElementSibling === next;
-            });
-
-            if (!inPlace) {
-                ours.forEach((el) => container.insertBefore(el, anchor));
-            }
-        },
-
         ensureLegacyHeaderButtons: function(configs) {
             const headerRight = document.querySelector('.skinHeader .headerRight');
             if (!headerRight) {
@@ -393,8 +375,9 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 console.log(`CustomTabs: Added ${id} to the header`);
             });
 
-            this.recordHeaderIcons(headerRight);
-            this.arrangeHeaderIcons(headerRight);
+            const items = Array.from(headerRight.children);
+            this.recordHeaderIcons(items);
+            this.arrangeHeaderIcons(headerRight, items);
         },
 
         // --- Right-hand header order --------------------------------------
@@ -405,36 +388,64 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
         headerIconsStorageKey: 'customTabs.headerIcons',
 
+        // The name a header icon is matched on: its aria-label or title, else
+        // a stable id, else the Material icon it shows. Plugins often add
+        // icons with only an id or an icon-font glyph and no label.
         nativeButtonLabel: function(el) {
             const labelled = el.matches('[aria-label], [title]') ? el : el.querySelector('[aria-label], [title]');
-            if (!labelled) {
-                return '';
+            const label = labelled ? (labelled.getAttribute('aria-label') || labelled.getAttribute('title') || '').trim() : '';
+            if (label) {
+                return label;
             }
 
-            return (labelled.getAttribute('aria-label') || labelled.getAttribute('title') || '').trim();
+            // React and MUI generate ids like ":r3:" that change between loads
+            const withId = el.id ? el : el.querySelector('[id]');
+            if (withId && withId.id && withId.id.indexOf(':') === -1 && !this.isOurHeaderButton(withId)) {
+                return withId.id;
+            }
+
+            const glyph = el.querySelector('.material-icons, .material-icons-outlined, .material-symbols-outlined, .material-symbols-rounded');
+            if (glyph) {
+                const text = glyph.textContent.trim();
+                if (text) {
+                    return text;
+                }
+                const name = Array.from(glyph.classList).find((c) => c.indexOf('material-') !== 0);
+                if (name) {
+                    return name;
+                }
+            }
+
+            return '';
         },
 
         isOurHeaderButton: function(el) {
             return (el.id || '').indexOf('customTabHeaderButton_') === 0;
         },
 
-        headerIconKey: function(el) {
-            if (this.isOurHeaderButton(el)) {
-                const config = this.configs && this.configs[parseInt(el.id.replace(/\D+/g, ''), 10)];
+        // The custom header button an item is or wraps, if any
+        ourHeaderButtonIn: function(item) {
+            return this.isOurHeaderButton(item) ? item : item.querySelector('[id^="customTabHeaderButton_"]');
+        },
+
+        headerIconKey: function(item) {
+            const ours = this.ourHeaderButtonIn(item);
+            if (ours) {
+                const config = this.configs && this.configs[parseInt(ours.id.replace(/\D+/g, ''), 10)];
                 return config && config.Id ? `custom:${config.Id}`.toLowerCase() : null;
             }
 
-            const label = this.nativeButtonLabel(el);
+            const label = this.nativeButtonLabel(item);
             return label ? `stock:${this.normaliseLabel(label)}` : null;
         },
 
-        recordHeaderIcons: function(container) {
+        recordHeaderIcons: function(items) {
             const labels = [];
-            Array.from(container.children).forEach((el) => {
-                if (this.isOurHeaderButton(el) || !el.getClientRects().length) {
+            items.forEach((item) => {
+                if (this.ourHeaderButtonIn(item) || !item.getClientRects().length) {
                     return; // ours, or hidden (e.g. SyncPlay when unavailable)
                 }
-                const label = this.nativeButtonLabel(el);
+                const label = this.nativeButtonLabel(item);
                 if (label && labels.indexOf(label) === -1) {
                     labels.push(label);
                 }
@@ -455,69 +466,113 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
         },
 
-        // Without a saved order, custom buttons sit in front of the native
-        // ones. With one, listed buttons follow it; custom buttons it does not
-        // mention go first and unlabelled native ones (e.g. some avatars) last.
-        arrangeHeaderIcons: function(container) {
-            const children = Array.from(container.children);
+        // Orders the items (in DOM order) inside container, moving any that
+        // live elsewhere (e.g. in another plugin's wrapper) into it. Without a
+        // saved order, custom buttons sit in front of the native
+        // ones. With one, listed items follow it; custom buttons it does not
+        // mention go first and unnamed native ones (e.g. some avatars) last.
+        arrangeHeaderIcons: function(container, items) {
+            if (!items.length) {
+                return;
+            }
+
+            // No saved order: leave every native icon where it is (other
+            // plugins' included) and keep ours just in front of the first
+            // native icon in the container
             if (!this.headerIconOrder || !this.headerIconOrder.length) {
-                const anchor = children.find((el) => !this.isOurHeaderButton(el));
-                this.keepBefore(container, '[id^="customTabHeaderButton_"]', anchor);
+                const ours = items.filter((item) => this.ourHeaderButtonIn(item));
+                if (!ours.length) {
+                    return;
+                }
+                const anchor = items.find((item) => !this.ourHeaderButtonIn(item) && item.parentElement === container) || null;
+                const together = ours.every((el, i) => el.parentElement === container
+                    && el.nextElementSibling === (i + 1 < ours.length ? ours[i + 1] : anchor));
+                if (!together) {
+                    ours.forEach((el) => container.insertBefore(el, anchor));
+                }
                 return;
             }
 
-            const rank = new Map(this.headerIconOrder.map((key, i) => [String(key).toLowerCase(), i]));
-            const ranked = [];
-            const unrankedOurs = [];
-            const unrankedNative = [];
-            children.forEach((el, position) => {
-                const key = this.headerIconKey(el);
-                const r = key ? rank.get(key) : undefined;
-                if (r !== undefined) {
-                    ranked.push({ el, r, position });
-                } else if (this.isOurHeaderButton(el)) {
-                    unrankedOurs.push(el);
-                } else {
-                    unrankedNative.push(el);
-                }
-            });
+            let desired;
+            {
+                const rank = new Map(this.headerIconOrder.map((key, i) => [String(key).toLowerCase(), i]));
+                const ranked = [];
+                const unrankedOurs = [];
+                const unrankedNative = [];
+                items.forEach((item, position) => {
+                    const key = this.headerIconKey(item);
+                    const r = key ? rank.get(key) : undefined;
+                    if (r !== undefined) {
+                        ranked.push({ item, r, position });
+                    } else if (this.ourHeaderButtonIn(item)) {
+                        unrankedOurs.push(item);
+                    } else {
+                        unrankedNative.push(item);
+                    }
+                });
 
-            ranked.sort((a, b) => a.r - b.r || a.position - b.position);
-            const desired = unrankedOurs.concat(ranked.map((entry) => entry.el), unrankedNative);
-            if (desired.every((el, i) => children[i] === el)) {
+                ranked.sort((a, b) => a.r - b.r || a.position - b.position);
+                desired = unrankedOurs.concat(ranked.map((entry) => entry.item), unrankedNative);
+            }
+
+            const inPlace = items.every((item) => item.parentElement === container)
+                && desired.every((item, i) => items[i] === item);
+            if (inPlace) {
                 return;
             }
 
-            desired.forEach((el, i) => {
-                const current = container.children[i];
-                if (current !== el) {
-                    container.insertBefore(el, current);
-                }
-            });
+            // Re-insert the items as one run where the first of them inside
+            // the container is now, leaving anything else where it is
+            const marker = document.createComment('customTabs');
+            const firstInside = items.find((item) => item.parentElement === container);
+            container.insertBefore(marker, firstInside || null);
+            desired.forEach((item) => container.insertBefore(item, marker));
+            marker.remove();
+            console.debug('CustomTabs: Reordered the header icons');
         },
 
-        // The native icon buttons on the right of the modern header, i.e. the
-        // MUI IconButtons that come after the tab links (or after the menu
-        // button when the links are collapsed into the drawer).
-        getModernHeaderIconButtons: function() {
-            if (document.body.classList.contains('dashboardDocument')) return [];
+        // The clickable elements on the right of the modern header (after the
+        // tab links, or after the menu button when the links are collapsed
+        // into the drawer), whatever they are: MUI IconButtons, plain buttons
+        // or links added by other plugins. Returns the closest container
+        // holding all of them, and for each one the child of that container
+        // it sits in, which is what gets moved.
+        getModernHeaderRightGroup: function() {
+            if (document.body.classList.contains('dashboardDocument')) return null;
             const toolbar = document.querySelector('header.MuiAppBar-root .MuiToolbar-root');
             if (!toolbar) {
-                return [];
+                return null;
             }
+
+            const selector = 'button, a[href], [role="button"]';
+            let controls = Array.from(toolbar.querySelectorAll(selector))
+                .filter((el) => !(el.parentElement && el.parentElement.closest(selector)));
 
             const bar = this.getModernBar();
-            let buttons = Array.from(toolbar.querySelectorAll('.MuiIconButton-root'))
-                .filter((el) => !el.id || el.id.indexOf('customTabHeaderButton_') !== 0);
-
             if (bar) {
-                buttons = buttons.filter((el) => !bar.contains(el)
+                controls = controls.filter((el) => !bar.contains(el)
                     && (bar.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING));
-            } else if (buttons.length > 1) {
-                buttons = buttons.slice(1);
+            } else {
+                controls = controls.slice(1).filter((el) => !this.isHeaderLogo(el));
             }
 
-            return buttons;
+            if (!controls.length) {
+                return null;
+            }
+
+            // Each icon's item is the outermost wrapper holding only that icon
+            // (e.g. a tooltip span), so icons that a plugin groups in its own
+            // wrapper can still be ordered one by one
+            const controlCount = (el) => controls.filter((c) => el.contains(c)).length;
+            const items = controls.map((el) => {
+                let item = el;
+                while (item.parentElement && item.parentElement !== toolbar && controlCount(item.parentElement) === 1) {
+                    item = item.parentElement;
+                }
+                return item;
+            });
+
+            return { toolbar, controls, items };
         },
 
         ensureModernHeaderButtons: function() {
@@ -525,14 +580,28 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 .map((config, i) => ({ config, i }))
                 .filter((entry) => this.isRightPlacement(entry.config));
 
-            const native = this.getModernHeaderIconButtons();
-            // Prefer a plain icon button over the avatar as the style source
-            const template = native.find((el) => el.querySelector('svg')) || native[0];
+            let group = this.getModernHeaderRightGroup();
+            if (!group) {
+                return;
+            }
+
+            // Style source: a native MUI icon button with an icon, else any
+            // native control with one
+            const natives = group.controls.filter((el) => !this.isOurHeaderButton(el));
+            const template = natives.find((el) => el.classList.contains('MuiIconButton-root') && el.querySelector('svg'))
+                || natives.find((el) => el.querySelector('svg, .material-icons'))
+                || natives[0];
+
             if (!template) {
                 return;
             }
 
-            const container = template.parentNode;
+            // Everything is gathered in the container of the native icon used
+            // as the template, normally Jellyfin's own icon group
+            const templateItem = group.items.find((item) => item.contains(template));
+            const container = templateItem.parentElement;
+
+            let added = false;
             wanted.forEach(({ config, i }) => {
                 const id = `customTabHeaderButton_${i}`;
                 if (document.getElementById(id)) {
@@ -545,20 +614,27 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 button.removeAttribute('aria-haspopup');
                 button.removeAttribute('aria-controls');
                 button.removeAttribute('aria-expanded');
+                button.removeAttribute('aria-label');
+                button.removeAttribute('title');
                 if (button.tagName === 'A') {
                     button.setAttribute('href', `#/home?tab=${i + 2}`);
                 } else {
                     button.addEventListener('click', () => this.openTab(i));
                 }
                 this.fillHeaderButton(button, config);
-                container.insertBefore(button, template);
+                container.insertBefore(button, templateItem);
+                added = true;
                 console.log(`CustomTabs: Added ${id} to the modern header`);
             });
 
+            if (added) {
+                group = this.getModernHeaderRightGroup() || group;
+            }
+
             // Runs even with no custom header buttons, so Jellyfin's own icons
             // can be reordered and listed on the settings page
-            this.recordHeaderIcons(container);
-            this.arrangeHeaderIcons(container);
+            this.recordHeaderIcons(group.items);
+            this.arrangeHeaderIcons(container, group.items);
         },
 
         // --- Jellyfin 12 Modern layout ---------------------------------------
