@@ -27,6 +27,27 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         public string[] HiddenTabs { get; set; } = Array.Empty<string>();
 
         public string[] HiddenHeaderIcons { get; set; } = Array.Empty<string>();
+
+        // Per-tab changes to Jellyfin's own tabs (renamed, icon changed or
+        // hidden, text hidden), keyed like TabOrder ("stock:<label>")
+        public StockTabOverride[] TabOverrides { get; set; } = Array.Empty<StockTabOverride>();
+    }
+
+    public class StockTabOverride
+    {
+        public string Key { get; set; } = string.Empty;
+
+        // Replacement label; empty keeps Jellyfin's
+        public string Title { get; set; } = string.Empty;
+
+        // Replacement icon: a Material icon name or an image URL (the image wins)
+        public string Icon { get; set; } = string.Empty;
+
+        public string ImageUrl { get; set; } = string.Empty;
+
+        public bool HideTitle { get; set; }
+
+        public bool HideIcon { get; set; }
     }
 
     public class TabConfig

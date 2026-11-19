@@ -69,6 +69,12 @@
         #customTabsConfigurationPage .customTabOrderMove { background: none; border: 1px solid rgba(255,255,255,.2); color: inherit; border-radius: .3em; width: 2em; height: 2em; cursor: pointer; font: inherit; line-height: 1; }
         #customTabsConfigurationPage .customTabOrderMove:disabled { opacity: .3; cursor: default; }
         #customTabsConfigurationPage .customTabOrderRow.isPinned { background: rgba(255,255,255,.04); }
+        #customTabsConfigurationPage .customTabOrderExpand { margin-left: .2em; }
+        #customTabsConfigurationPage .customTabOrderDetails { list-style: none; padding: .8em 1em 1em 4.2em; background: rgba(255,255,255,.04); border-top: 1px solid rgba(255,255,255,.08); }
+        #customTabsConfigurationPage .customTabDetailField { margin-bottom: .8em; }
+        #customTabsConfigurationPage .customTabDetailField > label { display: block; margin-bottom: .3em; }
+        #customTabsConfigurationPage .customTabDetailField > .customTabCheckboxLabel { display: inline-flex; }
+        #customTabsConfigurationPage .customTabDetailInput { width: 100%; max-width: 28em; box-sizing: border-box; padding: .45em .6em; background: rgba(255,255,255,.08); color: inherit; border: 1px solid rgba(255,255,255,.2); border-radius: .3em; font: inherit; }
         #customTabsConfigurationPage .customTabSwitch { position: relative; flex: none; width: 2.4em; height: 1.35em; cursor: pointer; }
         #customTabsConfigurationPage .customTabSwitchSpacer { cursor: default; }
         #customTabsConfigurationPage .customTabSwitchInput { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
@@ -205,7 +211,11 @@
                         TabOrder: CustomTabsConfig.orderLists.tabs.order.slice(),
                         HeaderIconOrder: CustomTabsConfig.orderLists.icons.order.slice(),
                         HiddenTabs: CustomTabsConfig.orderLists.tabs.hidden.slice(),
-                        HiddenHeaderIcons: CustomTabsConfig.orderLists.icons.hidden.slice()
+                        HiddenHeaderIcons: CustomTabsConfig.orderLists.icons.hidden.slice(),
+                        TabOverrides: Object.keys(CustomTabsConfig.tabOverrides).map(function (key) {
+                            const o = CustomTabsConfig.tabOverrides[key];
+                            return { Key: key, Title: (o.Title || '').trim(), Icon: (o.Icon || '').trim(), ImageUrl: (o.ImageUrl || '').trim(), HideTitle: !!o.HideTitle, HideIcon: !!o.HideIcon };
+                        }).filter(function (o) { return o.Title || o.Icon || o.ImageUrl || o.HideTitle || o.HideIcon; })
                     };
                     
                     // loop over tab configs
@@ -246,6 +256,15 @@
                             CustomTabsConfig.orderLists.icons.order = (config.HeaderIconOrder || []).slice();
                             CustomTabsConfig.orderLists.tabs.hidden = (config.HiddenTabs || []).map(function (k) { return String(k).toLowerCase(); });
                             CustomTabsConfig.orderLists.icons.hidden = (config.HiddenHeaderIcons || []).map(function (k) { return String(k).toLowerCase(); });
+                            CustomTabsConfig.tabOverrides = {};
+                            (config.TabOverrides || []).forEach(function (o) {
+                                if (o && o.Key) {
+                                    CustomTabsConfig.tabOverrides[String(o.Key).toLowerCase()] = {
+                                        Title: o.Title || '', Icon: o.Icon || '', ImageUrl: o.ImageUrl || '',
+                                        HideTitle: !!o.HideTitle, HideIcon: !!o.HideIcon
+                                    };
+                                }
+                            });
                             // Draw the order lists once all tabs are in, so new
                             // entries get their default places
                             CustomTabsConfig.loading = true;
@@ -324,7 +343,31 @@
                     });
                     document.querySelectorAll(".customTabOrderList").forEach((listElement) => {
                         const name = listElement.getAttribute('data-list');
+                        // Typing in a tab's panel updates its override in place,
+                        // without redrawing the list (which would lose focus)
+                        const onOverride = (event) => {
+                            const prop = event.target.getAttribute('data-ov-field');
+                            if (!prop) {
+                                return false;
+                            }
+                            const key = event.target.closest('[data-details-for]').getAttribute('data-details-for');
+                            const o = CustomTabsConfig.overrideFor(key);
+                            o[prop] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
+                            const rowName = listElement.querySelector('[data-key="' + CSS.escape(key) + '"] .customTabOrderName');
+                            const rowEl = rowName && rowName.closest('[data-key]');
+                            if (rowName) {
+                                const entry = CustomTabsConfig.orderLists[name].entries().find(function (e) { return e.key === key; });
+                                if (entry) {
+                                    rowName.textContent = CustomTabsConfig.rowName(name, entry, !rowEl.classList.contains('isDisabled'));
+                                }
+                            }
+                            return true;
+                        };
+                        listElement.addEventListener("input", onOverride);
                         listElement.addEventListener("change", (event) => {
+                            if (onOverride(event)) {
+                                return;
+                            }
                             if (event.target.classList.contains('customTabSwitchInput')) {
                                 const row = event.target.closest('[data-key]');
                                 CustomTabsConfig.setShown(name, row.getAttribute('data-key'), event.target.checked);
@@ -336,6 +379,25 @@
                             }
                         });
                         listElement.addEventListener("click", (event) => {
+                            const expand = event.target.closest('.customTabOrderExpand');
+                            if (expand) {
+                                const key = expand.closest('[data-key]').getAttribute('data-key');
+                                const expandedKeys = CustomTabsConfig.orderLists[name].expanded;
+                                const at = expandedKeys.indexOf(key);
+                                if (at === -1) expandedKeys.push(key); else expandedKeys.splice(at, 1);
+                                CustomTabsConfig.renderOrder(name);
+                                return;
+                            }
+                            const editCard = event.target.closest('[data-edit-card]');
+                            if (editCard) {
+                                const card = Array.from(document.querySelectorAll("[data-id=tab-config]"))
+                                    .find(function (c) { return c.dataset.tabId === editCard.getAttribute('data-edit-card'); });
+                                if (card) {
+                                    CustomTabsConfig.setCollapsed(card, false);
+                                    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }
+                                return;
+                            }
                             const button = event.target.closest('.customTabOrderMove');
                             if (button) {
                                 const row = button.closest('[data-key]');
@@ -350,7 +412,7 @@
                 // Keys: "stock:<label>" for Jellyfin's tabs, matched on their
                 // label in the header, and "custom:<id>" for custom tabs.
                 orderLists: {
-                    tabs: { element: '#tabOrderList', order: [], hidden: [], entries: function () { return CustomTabsConfig.tabOrderEntries(); } },
+                    tabs: { element: '#tabOrderList', order: [], hidden: [], expanded: [], entries: function () { return CustomTabsConfig.tabOrderEntries(); } },
                     icons: { element: '#headerIconOrderList', order: [], hidden: [], entries: function () { return CustomTabsConfig.headerIconEntries(); } }
                 },
                 stockNames: ['Home', 'Favorites'],
@@ -488,7 +550,7 @@
 
                         const name = document.createElement('span');
                         name.className = 'customTabOrderName';
-                        name.textContent = entry.name + (shown ? '' : ' (hidden)');
+                        name.textContent = CustomTabsConfig.rowName(listName, entry, shown);
 
                         const kind = document.createElement('span');
                         kind.className = 'customTabOrderKind';
@@ -511,7 +573,23 @@
                         down.disabled = i === ordered.length - 1;
 
                         row.append(CustomTabsConfig.visibilitySwitch(entry.name, shown), number, name, kind, up, down);
+
+                        // Tab order rows open a panel with that tab's settings
+                        const expanded = listName === 'tabs' && state.expanded.indexOf(key) !== -1;
+                        if (listName === 'tabs') {
+                            const more = document.createElement('button');
+                            more.type = 'button';
+                            more.className = 'customTabOrderMove customTabOrderExpand';
+                            more.setAttribute('aria-expanded', String(expanded));
+                            more.setAttribute('aria-label', (expanded ? 'Hide' : 'Show') + ' settings for ' + entry.name);
+                            more.textContent = expanded ? '\u25B4' : '\u25BE';
+                            row.appendChild(more);
+                        }
                         list.appendChild(row);
+
+                        if (expanded) {
+                            list.appendChild(CustomTabsConfig.tabDetails(key, entry));
+                        }
                     });
 
                     // The user menu can't be moved (it is always kept at the
@@ -521,6 +599,92 @@
                         list.appendChild(CustomTabsConfig.pinnedRow(ordered.length + 1, 'User menu (profile picture)',
                             'Always stays at the right end of the header'));
                     }
+                },
+                // --- Built-in tab overrides ------------------------------
+                // Changes to Jellyfin's own tabs, keyed like the order
+                tabOverrides: {},
+                overrideFor: function (key) {
+                    if (!CustomTabsConfig.tabOverrides[key]) {
+                        CustomTabsConfig.tabOverrides[key] = { Title: '', Icon: '', ImageUrl: '', HideTitle: false, HideIcon: false };
+                    }
+                    return CustomTabsConfig.tabOverrides[key];
+                },
+                rowName: function (listName, entry, shown) {
+                    let text = entry.name;
+                    const o = listName === 'tabs' && !entry.custom ? CustomTabsConfig.tabOverrides[entry.key] : null;
+                    if (o && o.Title && o.Title.trim()) {
+                        text += ' \u2192 ' + o.Title.trim();
+                    }
+                    const notes = [];
+                    if (o && o.HideTitle) notes.push('no text');
+                    if (o && o.HideIcon) notes.push('no icon');
+                    else if (o && (o.Icon || o.ImageUrl)) notes.push('new icon');
+                    if (!shown) notes.push('hidden');
+                    return text + (notes.length ? ' (' + notes.join(', ') + ')' : '');
+                },
+                // The panel under an opened Tab order row
+                tabDetails: function (key, entry) {
+                    const li = document.createElement('li');
+                    li.className = 'customTabOrderDetails';
+                    li.setAttribute('data-details-for', key);
+
+                    if (entry.custom) {
+                        const note = document.createElement('div');
+                        note.className = 'fieldDescription';
+                        note.textContent = 'This is a custom tab. Its text, icon and content are set in its card in the Tabs section below.';
+                        const open = document.createElement('button');
+                        open.type = 'button';
+                        open.className = 'emby-button raised';
+                        open.setAttribute('data-edit-card', key.substring(7));
+                        open.textContent = 'Open its settings';
+                        li.append(note, open);
+                        return li;
+                    }
+
+                    const o = CustomTabsConfig.tabOverrides[key] || {};
+                    const field = function (labelText, prop, type, placeholder, help) {
+                        const wrap = document.createElement('div');
+                        wrap.className = 'customTabDetailField';
+                        const label = document.createElement('label');
+                        const input = document.createElement('input');
+                        input.type = type;
+                        input.setAttribute('data-ov-field', prop);
+                        if (type === 'checkbox') {
+                            input.className = 'customTabCheckbox';
+                            input.checked = !!o[prop];
+                            label.className = 'customTabCheckboxLabel';
+                            const span = document.createElement('span');
+                            span.textContent = labelText;
+                            label.append(input, span);
+                            wrap.appendChild(label);
+                        } else {
+                            input.className = 'customTabDetailInput';
+                            input.value = o[prop] || '';
+                            input.placeholder = placeholder || '';
+                            label.textContent = labelText;
+                            wrap.append(label, input);
+                        }
+                        if (help) {
+                            const d = document.createElement('div');
+                            d.className = 'fieldDescription';
+                            d.textContent = help;
+                            wrap.appendChild(d);
+                        }
+                        return wrap;
+                    };
+
+                    li.append(
+                        field('Display text', 'Title', 'text', entry.name, 'Leave empty to keep Jellyfin\'s name.'),
+                        field('Hide text (show only the icon)', 'HideTitle', 'checkbox'),
+                        field('Material icon name', 'Icon', 'text', 'e.g. movie, live_tv, favorite', 'Replaces Jellyfin\'s icon. Leave empty to keep it.'),
+                        field('Image URL', 'ImageUrl', 'text', 'https://example.com/logo.png', 'Used instead of the Material icon when both are set. You can paste the Image URL of an image uploaded on a custom tab.'),
+                        field('Hide icon', 'HideIcon', 'checkbox')
+                    );
+                    const scope = document.createElement('div');
+                    scope.className = 'fieldDescription';
+                    scope.textContent = 'Applies to the newer header layout. The side menu on small screens keeps the text.';
+                    li.appendChild(scope);
+                    return li;
                 },
                 // Show/hide switch at the start of each row
                 visibilitySwitch: function (name, shown) {

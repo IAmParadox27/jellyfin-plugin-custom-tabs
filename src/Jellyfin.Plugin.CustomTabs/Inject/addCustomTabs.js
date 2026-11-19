@@ -12,6 +12,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
         tabOrder: [],
         headerIconOrder: [],
         hiddenTabs: [],
+        tabOverrides: {},
         hiddenHeaderIcons: [],
         modernObserver: null,
         modernPending: false,
@@ -112,6 +113,20 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 const hiddenIcons = order.HiddenHeaderIcons || order.hiddenHeaderIcons;
                 this.hiddenTabs = Array.isArray(hiddenTabs) ? hiddenTabs.map((k) => String(k).toLowerCase()) : [];
                 this.hiddenHeaderIcons = Array.isArray(hiddenIcons) ? hiddenIcons.map((k) => String(k).toLowerCase()) : [];
+                const overrides = order.TabOverrides || order.tabOverrides;
+                this.tabOverrides = {};
+                (Array.isArray(overrides) ? overrides : []).forEach((o) => {
+                    const key = String((o && (o.Key || o.key)) || '').toLowerCase();
+                    if (key) {
+                        this.tabOverrides[key] = {
+                            Title: o.Title || o.title || '',
+                            Icon: o.Icon || o.icon || '',
+                            ImageUrl: o.ImageUrl || o.imageUrl || '',
+                            HideTitle: !!(o.HideTitle || o.hideTitle),
+                            HideIcon: !!(o.HideIcon || o.hideIcon)
+                        };
+                    }
+                });
             }).catch(() => {
                 this.tabOrder = [];
                 this.headerIconOrder = [];
@@ -321,6 +336,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 + '.customTabHeaderButton .customTabLabel{font-size:.875rem;white-space:nowrap;}'
                 + '.customTabHeaderButton[aria-current="page"]{background-color:rgba(255,255,255,.12);}'
                 + '.customTabsHidden{display:none !important;}'
+                + '.customTabsIconOnly{margin-left:0 !important;margin-right:0 !important;}'
+                + '.customTabsOverrideIcon.material-icons{font-size:20px;}'
                 // On narrow screens the header icons scroll sideways instead of
                 // running off the edge. The group is right-aligned with an auto
                 // margin rather than justify-content, so that when it overflows
@@ -980,7 +997,103 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 return config && config.Id ? `custom:${config.Id}`.toLowerCase() : null;
             }
 
-            return `stock:${this.normaliseLabel(el.textContent)}`;
+            return `stock:${this.stockLabel(el)}`;
+        },
+
+        // A built-in tab's original label, remembered the first time it is
+        // seen, so a renamed tab keeps its key for ordering and hiding
+        stockLabel: function(el) {
+            if (el.dataset.ctLabel === undefined) {
+                el.dataset.ctLabel = this.normaliseLabel(el.textContent);
+            }
+            return el.dataset.ctLabel;
+        },
+
+        // Applies the settings page's changes to one of Jellyfin's own tabs:
+        // a new label, hidden text, a hidden or replaced icon. Idempotent, and
+        // undoes itself when the change is removed. The drawer keeps its text.
+        applyStockOverride: function(el, isDrawer) {
+            const key = `stock:${this.stockLabel(el)}`;
+            const o = (this.tabOverrides && this.tabOverrides[key]) || null;
+            const link = el.tagName === 'A' ? el : (el.querySelector('a') || el);
+
+            // Text: the header button keeps its label in a trailing text node,
+            // the drawer item in MuiListItemText
+            let textTarget = link.__ctTextTarget;
+            if (!textTarget || !link.contains(textTarget)) {
+                textTarget = isDrawer
+                    ? link.querySelector('.MuiListItemText-root span, .MuiListItemText-primary, .MuiTypography-root')
+                    : Array.from(link.childNodes).reverse()
+                        .find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== '');
+                if (textTarget) {
+                    link.__ctTextTarget = textTarget;
+                    link.__ctOriginalText = textTarget.textContent;
+                }
+            }
+
+            const original = link.__ctOriginalText || '';
+            const label = (o && o.Title) ? o.Title : original.trim();
+            const hideText = !!(o && o.HideTitle) && !isDrawer;
+            if (textTarget) {
+                const wanted = hideText ? '' : ((o && o.Title) ? o.Title : original);
+                if (textTarget.textContent !== wanted) {
+                    textTarget.textContent = wanted;
+                }
+            }
+
+            if (hideText) {
+                if (link.getAttribute('title') !== label) {
+                    link.setAttribute('title', label);
+                    link.setAttribute('aria-label', label);
+                    link.dataset.ctTitled = '1';
+                }
+            } else if (link.dataset.ctTitled) {
+                link.removeAttribute('title');
+                link.removeAttribute('aria-label');
+                delete link.dataset.ctTitled;
+            }
+
+            // Icon
+            const hideIcon = !!(o && o.HideIcon);
+            const replacement = (o && (o.ImageUrl || o.Icon)) ? { ImageUrl: o.ImageUrl, Icon: o.Icon } : null;
+            const signature = replacement ? `${replacement.ImageUrl}|${replacement.Icon}` : '';
+            let slot = link.querySelector('.MuiButton-startIcon, .MuiListItemIcon-root');
+            let ours = link.querySelector('.customTabsOverrideIcon');
+
+            if (replacement && !hideIcon) {
+                if (!ours || ours.dataset.ctSig !== signature) {
+                    const icon = this.buildTabIcon(replacement);
+                    if (icon) {
+                        icon.classList.add('customTabsOverrideIcon');
+                        icon.dataset.ctSig = signature;
+                        if (!slot) {
+                            slot = document.createElement(isDrawer ? 'div' : 'span');
+                            slot.className = isDrawer ? 'MuiListItemIcon-root customTabsAddedSlot' : 'MuiButton-startIcon customTabsAddedSlot';
+                            link.insertBefore(slot, link.firstChild);
+                        }
+                        if (ours) {
+                            ours.replaceWith(icon);
+                        } else {
+                            slot.appendChild(icon);
+                        }
+                        ours = icon;
+                    }
+                }
+            } else if (ours) {
+                ours.remove();
+                ours = null;
+            }
+
+            if (slot) {
+                // Jellyfin's own icon hides when replaced or hidden
+                Array.from(slot.children).forEach((child) => {
+                    if (!child.classList.contains('customTabsOverrideIcon')) {
+                        child.classList.toggle('customTabsHidden', hideIcon || !!ours);
+                    }
+                });
+                slot.classList.toggle('customTabsHidden', hideIcon);
+                slot.classList.toggle('customTabsIconOnly', hideText);
+            }
         },
 
         // The drawer (hamburger) button. MUI marks it edge="start"; the label
@@ -1069,13 +1182,15 @@ if (typeof window.customTabsPlugin == 'undefined') {
             const isOurs = (el) => el.matches(selector) || !!el.querySelector(selector);
             const children = Array.from(container.children);
 
-            // Jellyfin's own tabs switched off on the settings page
+            // Jellyfin's own tabs switched off or changed on the settings page
             const hidden = this.hiddenTabs || [];
+            const isDrawer = container.tagName === 'UL' || container.classList.contains('MuiList-root');
             children.forEach((el) => {
                 if (isOurs(el)) {
                     return;
                 }
                 const key = this.tabKey(el, selector);
+                this.applyStockOverride(el, isDrawer);
                 el.classList.toggle('customTabsHidden', !!key && hidden.indexOf(key) !== -1);
             });
 
