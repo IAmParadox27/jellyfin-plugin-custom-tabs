@@ -97,6 +97,10 @@ Each tab can show an icon or an image alongside, or instead of, its text:
 - **Placement**: *Tab bar (left)* adds a normal tab. *Header icons (right)* adds a button next to search and the user menu instead, showing the icon or image with the title as its tooltip. Clicking it opens the tab's content just like a normal tab.
 - **Hide text**: shows only the icon or image. The title is still used as the tooltip and the screen reader label. This option is ignored when no icon or image is set, so a tab is never blank. The mobile side menu always keeps the text.
 
+### Theme-coloured images
+
+Images (a URL or an upload) normally keep their own colours. Tick **Match the theme colour**, in a custom tab's Icon section or a Jellyfin tab's ▾ panel, to fill the image's shape with the tab text colour instead, so it follows Jellyfin's theme and its hover and selected states like the built-in icons. This needs an image with a transparent background (PNG or SVG). Images from other websites only work if that site allows it (CORS); uploaded images always do. Material icons always use the theme colour.
+
 ### Default icons
 
 A tab named **Anime**, whether a library or a custom tab, shows a cloud icon by default, drawn in the same colour as the other tabs. Setting your own icon or image for the tab, or hiding its icon, takes precedence. The defaults live in `defaultTabIcons` in `Inject/addCustomTabs.js` (a name and an alpha-mask image), so more can be added there.

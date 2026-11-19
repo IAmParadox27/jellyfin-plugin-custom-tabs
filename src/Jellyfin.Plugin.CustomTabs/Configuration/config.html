@@ -189,6 +189,13 @@
                     </div>
                     <div class="fieldDescription">PNG, JPEG, GIF, WebP, SVG or ICO, up to 2 MB. The file is stored on the Jellyfin server. Click Save to keep it.</div>
                 </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" data-id="chkTintImage" />
+                        <span>Match the theme colour</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Fills the image's shape with the tab text colour, so it follows Jellyfin's theme (and hover and selected states) like the built-in icons. Needs an image with a transparent background, such as a PNG or SVG; images from other websites only work if that site allows it, uploaded images always do.</div>
+                </div>
             </div>
 
             <div class="customTabSection">
@@ -231,7 +238,7 @@
                         HiddenDrawerTabs: CustomTabsConfig.orderLists.tabs.drawerHidden.slice(),
                         TabOverrides: Object.keys(CustomTabsConfig.tabOverrides).map(function (key) {
                             const o = CustomTabsConfig.tabOverrides[key];
-                            return { Key: key, Title: (o.Title || '').trim(), Icon: (o.Icon || '').trim(), ImageUrl: (o.ImageUrl || '').trim(), HideTitle: !!o.HideTitle, HideIcon: !!o.HideIcon };
+                            return { Key: key, Title: (o.Title || '').trim(), Icon: (o.Icon || '').trim(), ImageUrl: (o.ImageUrl || '').trim(), HideTitle: !!o.HideTitle, HideIcon: !!o.HideIcon, TintImage: !!o.TintImage };
                         }).filter(function (o) { return o.Title || o.Icon || o.ImageUrl || o.HideTitle || o.HideIcon; })
                     };
                     
@@ -243,6 +250,7 @@
                             ContentHtml: tabConfig.querySelector("[data-id=templateHtmlContent]").value,
                             Icon: tabConfig.querySelector("[data-id=txtIcon]").value.trim(),
                             ImageUrl: tabConfig.querySelector("[data-id=txtImageUrl]").value.trim(),
+                            TintImage: tabConfig.querySelector("[data-id=chkTintImage]").checked,
                             HideTitle: tabConfig.querySelector("[data-id=chkHideTitle]").checked,
                             Placement: tabConfig.querySelector("[data-id=selPlacement]").value,
                             Enabled: tabConfig.querySelector("[data-id=chkEnabled]").checked,
@@ -279,7 +287,7 @@
                                 if (o && o.Key) {
                                     CustomTabsConfig.tabOverrides[String(o.Key).toLowerCase()] = {
                                         Title: o.Title || '', Icon: o.Icon || '', ImageUrl: o.ImageUrl || '',
-                                        HideTitle: !!o.HideTitle, HideIcon: !!o.HideIcon
+                                        HideTitle: !!o.HideTitle, HideIcon: !!o.HideIcon, TintImage: !!o.TintImage
                                     };
                                 }
                             });
@@ -703,7 +711,7 @@
                     const notes = [];
                     if (o && o.HideTitle) notes.push('no text');
                     if (o && o.HideIcon) notes.push('no icon');
-                    else if (o && (o.Icon || o.ImageUrl)) notes.push('new icon');
+                    else if (o && (o.Icon || o.ImageUrl)) notes.push(o.ImageUrl && o.TintImage ? 'new icon, theme colour' : 'new icon');
                     if (!shown) notes.push(entry.custom ? 'disabled' : 'hidden in header');
                     if (entry.custom && CustomTabsConfig.orderLists.tabs.hidden.indexOf(entry.key) !== -1) notes.push('not in header');
                     if (CustomTabsConfig.orderLists.tabs.drawerHidden.indexOf(entry.key) !== -1) notes.push('not in side menu');
@@ -767,6 +775,7 @@
                         field('Hide text (show only the icon)', 'HideTitle', 'checkbox'),
                         CustomTabsConfig.withIconLink(field('Material icon name', 'Icon', 'text', 'e.g. movie, live_tv, favorite', 'Replaces Jellyfin\'s icon. Leave empty to keep it.')),
                         CustomTabsConfig.withUpload(field('Image URL', 'ImageUrl', 'text', 'https://example.com/logo.png', 'Used instead of the Material icon when both are set: a web address, or upload a file below.'), o.ImageUrl),
+                        field('Match the theme colour', 'TintImage', 'checkbox', '', "Fills the image\'s shape with the tab text colour, so it follows Jellyfin\'s theme (and hover and selected states) like the built-in icons. Needs an image with a transparent background, such as a PNG or SVG; images from other websites only work if that site allows it, uploaded images always do."),
                         field('Hide icon', 'HideIcon', 'checkbox')
                     );
                     li.appendChild(CustomTabsConfig.drawerToggle(key));
@@ -1042,6 +1051,7 @@
                     template.querySelector('[data-id=templateHtmlContent]').value = tabConfig.ContentHtml;
                     template.querySelector('[data-id=txtIcon]').value = tabConfig.Icon || '';
                     template.querySelector('[data-id=txtImageUrl]').value = tabConfig.ImageUrl || '';
+                    template.querySelector('[data-id=chkTintImage]').checked = !!tabConfig.TintImage;
                     template.querySelector('[data-id=chkHideTitle]').checked = !!tabConfig.HideTitle;
                     template.querySelector('[data-id=selPlacement]').value = tabConfig.Placement === 'Right' ? 'Right' : '';
                     // Tabs saved before this setting existed have no Enabled value

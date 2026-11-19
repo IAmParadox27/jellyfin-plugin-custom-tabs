@@ -53,6 +53,9 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         public bool HideTitle { get; set; }
 
         public bool HideIcon { get; set; }
+
+        // Draw the image's shape in the theme's text colour
+        public bool TintImage { get; set; }
     }
 
     public class TabConfig
@@ -72,6 +75,10 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
 
         // Image shown on the tab; takes priority over Icon when both are set.
         public string ImageUrl { get; set; } = string.Empty;
+
+        // Draw the image's shape in the theme's text colour, like Jellyfin's
+        // own icons, instead of its own colours (needs a transparent image)
+        public bool TintImage { get; set; }
 
         // Show only the icon or image. Ignored when neither is set, so a tab
         // can never end up blank.

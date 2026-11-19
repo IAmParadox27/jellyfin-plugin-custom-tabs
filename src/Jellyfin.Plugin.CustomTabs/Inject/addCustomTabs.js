@@ -126,7 +126,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
                             Icon: o.Icon || o.icon || '',
                             ImageUrl: o.ImageUrl || o.imageUrl || '',
                             HideTitle: !!(o.HideTitle || o.hideTitle),
-                            HideIcon: !!(o.HideIcon || o.hideIcon)
+                            HideIcon: !!(o.HideIcon || o.hideIcon),
+                            TintImage: !!(o.TintImage || o.tintImage)
                         };
                     }
                 });
@@ -301,6 +302,18 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // with neither falls back to its default icon, if its name has one.
         buildTabIcon: function(config) {
             const imageUrl = (config.ImageUrl || '').trim();
+            const resolved = imageUrl.indexOf('CustomTabs/Images/') === 0 && typeof ApiClient !== 'undefined'
+                ? ApiClient.getUrl(imageUrl)
+                : imageUrl;
+            if (imageUrl && config.TintImage) {
+                // The image's shape filled with the text colour, so it follows
+                // the theme like Jellyfin's icons
+                const span = document.createElement('span');
+                span.className = 'customTabIcon customTabMaskIcon customTabTintedImage';
+                span.setAttribute('aria-hidden', 'true');
+                span.style.setProperty('--ct-mask', `url("${resolved.replace(/"/g, '%22')}")`);
+                return span;
+            }
             if (imageUrl) {
                 const img = document.createElement('img');
                 // Uploaded images are stored as a server path, which has to go
@@ -1130,12 +1143,12 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
             // Icon
             const hideIcon = !!(o && o.HideIcon);
-            const replacement = (o && (o.ImageUrl || o.Icon)) ? { ImageUrl: o.ImageUrl, Icon: o.Icon } : null;
+            const replacement = (o && (o.ImageUrl || o.Icon)) ? { ImageUrl: o.ImageUrl, Icon: o.Icon, TintImage: o.TintImage } : null;
             // Without a chosen icon, a tab whose (new) name has a default icon
             // uses that instead of Jellyfin's
             const shownName = this.normaliseLabel(label);
             const useDefault = !replacement && !!this.defaultTabIconFor(shownName);
-            const signature = replacement ? `${replacement.ImageUrl}|${replacement.Icon}` : (useDefault ? `default:${shownName}` : '');
+            const signature = replacement ? `${replacement.ImageUrl}|${replacement.Icon}|${replacement.TintImage ? 't' : ''}` : (useDefault ? `default:${shownName}` : '');
             let slot = link.querySelector('.MuiButton-startIcon, .MuiListItemIcon-root');
             let ours = link.querySelector('.customTabsOverrideIcon');
 
