@@ -545,16 +545,25 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
 
             const selector = 'button, a[href], [role="button"]';
-            let controls = Array.from(toolbar.querySelectorAll(selector))
+            const allControls = Array.from(toolbar.querySelectorAll(selector))
                 .filter((el) => !(el.parentElement && el.parentElement.closest(selector)));
+            let controls = allControls;
 
             const bar = this.getModernBar();
             if (bar) {
                 controls = controls.filter((el) => !bar.contains(el)
                     && (bar.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING));
             } else {
-                controls = controls.slice(1).filter((el) => !this.isHeaderLogo(el));
+                // Tab links collapsed into the drawer (narrow screens): the
+                // right group is whatever follows the menu button. Other
+                // controls can come before it (e.g. a hidden back button), so
+                // find it rather than assuming it is first.
+                const menuIndex = controls.findIndex((el) => this.isHeaderMenuButton(el));
+                controls = controls.slice(menuIndex >= 0 ? menuIndex + 1 : 1);
             }
+
+            // Never treat the menu button or the home/logo link as an icon
+            controls = controls.filter((el) => !this.isHeaderMenuButton(el) && !this.isHomeLink(el));
 
             if (!controls.length) {
                 return null;
@@ -562,8 +571,10 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
             // Each icon's item is the outermost wrapper holding only that icon
             // (e.g. a tooltip span), so icons that a plugin groups in its own
-            // wrapper can still be ordered one by one
-            const controlCount = (el) => controls.filter((c) => el.contains(c)).length;
+            // wrapper can still be ordered one by one. Counting every control
+            // in the toolbar keeps a wrapper that also holds the menu button
+            // or logo from being moved.
+            const controlCount = (el) => allControls.filter((c) => el.contains(c)).length;
             const items = controls.map((el) => {
                 let item = el;
                 while (item.parentElement && item.parentElement !== toolbar && controlCount(item.parentElement) === 1) {
@@ -649,7 +660,10 @@ if (typeof window.customTabsPlugin == 'undefined') {
         // rest of the styling.
         getModernBar: function() {
             if (document.body.classList.contains('dashboardDocument')) return null;
-            return document.querySelector('header.MuiAppBar-root .MuiToolbar-root .MuiStack-root');
+            // The stack holding the tab links; the icon group on the right can
+            // be a stack too, so require a tab link (text button or home tab)
+            const stacks = Array.from(document.querySelectorAll('header.MuiAppBar-root .MuiToolbar-root .MuiStack-root'));
+            return stacks.find((stack) => stack.querySelector('a.MuiButton-root, a[href^="#/home?tab="]')) || null;
         },
 
         // Below roughly 768px the header links unmount and MUI renders a drawer
@@ -832,6 +846,22 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
 
             return `stock:${this.normaliseLabel(el.textContent)}`;
+        },
+
+        // The drawer (hamburger) button. MUI marks it edge="start"; the label
+        // check covers builds without that, but deliberately not "User menu"
+        isHeaderMenuButton: function(el) {
+            if (el.classList.contains('MuiIconButton-edgeStart')) {
+                return true;
+            }
+            const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
+            return /^(open |toggle |show )?(the )?(main |navigation )?(menu|navigation|drawer|sidebar)$/i.test(label);
+        },
+
+        isHomeLink: function(el) {
+            const link = el.tagName === 'A' ? el : el.querySelector('a');
+            const href = (link && link.getAttribute('href')) || '';
+            return /^#\/home(\.html)?\/?$/.test(href);
         },
 
         // The server logo / home link: a link to the home page with no tab
