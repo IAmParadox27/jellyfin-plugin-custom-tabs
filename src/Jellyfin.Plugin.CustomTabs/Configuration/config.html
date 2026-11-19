@@ -19,6 +19,32 @@
         <hr class="solid">
 
         <form class="customTabsConfigurationForm">
+            <div class="customTabOrderSection">
+                <h2 class="sectionTitle">General</h2>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" id="chkShowSettingsLink" checked />
+                        <span>Link to these settings in the user menu</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Adds a Custom Tabs item that opens this page to the user menu (the profile picture in the header) and to the Admin section of the Settings page. Only administrators see it, next to Jellyfin's Dashboard and Metadata links.</div>
+                </div>
+            </div>
+            <div class="customTabOrderSection">
+                <h2 class="sectionTitle">Tab order</h2>
+                <div class="fieldDescription">Number the tabs in the order they should appear in the header, Jellyfin's own tabs included. Change a number or use the arrows. Use the switch at the start of a row to show or hide that tab in the header (for a custom tab it is the same as its Enabled switch), and the ▾ button for its other settings, including whether it appears in the side menu. Applies to the newer header layout, where libraries appear as tabs; in the classic layout custom tabs always come after Home and Favorites. Tabs set to Header icons (right) are ordered in the next list.</div>
+                <ol id="tabOrderList" class="customTabOrderList" data-list="tabs"></ol>
+            </div>
+            <div class="customTabOrderSection">
+                <h2 class="sectionTitle">Header icon order</h2>
+                <div class="fieldDescription">Number the icon buttons on the right of the header, Jellyfin's own (and other plugins') together with tabs set to Header icons (right). Jellyfin's icons are listed once you have opened the Jellyfin home page in this browser with this version of the plugin installed. The user menu (profile picture) is pinned to the right end, like the menu button on the left, and can't be moved. Use the switch at the start of a row to show or hide that icon.</div>
+                <ol id="headerIconOrderList" class="customTabOrderList" data-list="icons"></ol>
+                <div class="fieldDescription" data-id="headerIconsHint" style="display:none;">No Jellyfin icons found yet. Open the Jellyfin home page in this browser, then come back to this page.</div>
+            </div>
+            <h2 class="sectionTitle">Tabs</h2>
+            <div class="customTabListActions">
+                <button id="btnExpandAll" is="emby-button" type="button" class="emby-button raised"><span>Expand all</span></button>
+                <button id="btnCollapseAll" is="emby-button" type="button" class="emby-button raised"><span>Collapse all</span></button>
+            </div>
             <div id="configurationWrapper">
             </div>
             <button id="btnAddCustomTab" is="emby-button" type="button" class="raised button block">
@@ -31,25 +57,180 @@
             </button>
         </form>
     </div>
+    <style>
+        /* Setting descriptions shown as popups from an "info" icon */
+        #customTabsConfigurationPage .customTabInfo { position: relative; display: inline-flex; align-items: center; vertical-align: middle; margin-left: .35em; cursor: help; opacity: .7; font-size: 1rem; line-height: 1; font-weight: normal; }
+        #customTabsConfigurationPage .customTabInfo:hover, #customTabsConfigurationPage .customTabInfo:focus-visible, #customTabsConfigurationPage .customTabInfo.open { opacity: 1; }
+        #customTabsConfigurationPage .customTabInfo:focus-visible { outline: 2px solid #00a4dc; outline-offset: 2px; border-radius: 50%; }
+        #customTabsConfigurationPage .customTabInfo > .material-icons { font-size: 1.15em; }
+        #customTabsConfigurationPage .customTabInfoPopup { display: none; position: absolute; left: -.5em; top: calc(100% + 6px); z-index: 1000; width: max-content; max-width: min(24em, 80vw); padding: .6em .8em; background: #202020; color: #eee; border: 1px solid rgba(255,255,255,.2); border-radius: .4em; box-shadow: 0 4px 14px rgba(0,0,0,.5); font-size: .85rem; line-height: 1.45; text-align: left; white-space: normal; cursor: auto; }
+        #customTabsConfigurationPage .customTabInfo:hover > .customTabInfoPopup, #customTabsConfigurationPage .customTabInfo:focus-within > .customTabInfoPopup, #customTabsConfigurationPage .customTabInfo.open > .customTabInfoPopup { display: block; }
+        #customTabsConfigurationPage .customTabInfoPopup .fieldDescription { margin: 0; padding: 0; color: inherit; font-size: inherit; }
+        #customTabsConfigurationPage .customTabInfoPopup .fieldDescription + .fieldDescription { margin-top: .5em; }
+        #customTabsConfigurationPage .customTabCard { border: 1px solid rgba(255,255,255,.15); border-radius: .5em; padding: 1em 1.5em 1.5em; margin: 0 0 2em; }
+        #customTabsConfigurationPage .customTabCardHeader { display: flex; align-items: center; justify-content: space-between; gap: 1em; flex-wrap: wrap; }
+        #customTabsConfigurationPage .customTabCardHeader h2 { margin: .3em 0; }
+        #customTabsConfigurationPage .customTabHeading { flex: 1; min-width: 0; }
+        #customTabsConfigurationPage .customTabToggle { display: flex; align-items: center; gap: .6em; width: 100%; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        #customTabsConfigurationPage .customTabChevron { flex: none; width: .55em; height: .55em; border-right: .15em solid currentColor; border-bottom: .15em solid currentColor; transform: rotate(45deg); margin: 0 .3em .25em; transition: transform .15s; }
+        #customTabsConfigurationPage .customTabCollapsed .customTabChevron { transform: rotate(-45deg); margin-bottom: 0; }
+        #customTabsConfigurationPage .customTabCollapsed .customTabBody { display: none; }
+        #customTabsConfigurationPage .customTabCard.customTabCollapsed { padding-bottom: 1em; }
+        #customTabsConfigurationPage .customTabOrderSection { margin-bottom: 2em; }
+        #customTabsConfigurationPage .customTabOrderList { list-style: none; margin: .8em 0 0; padding: 0; border: 1px solid rgba(255,255,255,.15); border-radius: .5em; }
+        #customTabsConfigurationPage .customTabOrderRow { display: flex; align-items: center; gap: .8em; padding: .45em .8em; }
+        #customTabsConfigurationPage .customTabOrderRow + .customTabOrderRow { border-top: 1px solid rgba(255,255,255,.08); }
+        #customTabsConfigurationPage .customTabOrderNumber { width: 3.5em; padding: .35em .4em; text-align: center; background: rgba(255,255,255,.08); color: inherit; border: 1px solid rgba(255,255,255,.2); border-radius: .3em; font: inherit; }
+        #customTabsConfigurationPage .customTabOrderName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #customTabsConfigurationPage .customTabOrderKind { font-size: .8em; padding: .1em .6em; border-radius: 1em; background: rgba(255,255,255,.1); white-space: nowrap; }
+        #customTabsConfigurationPage .customTabOrderRow.isCustom .customTabOrderKind { background: rgba(0,164,220,.3); }
+        #customTabsConfigurationPage .customTabOrderRow.isDisabled .customTabOrderName { opacity: .5; }
+        #customTabsConfigurationPage .customTabOrderMove { background: none; border: 1px solid rgba(255,255,255,.2); color: inherit; border-radius: .3em; width: 2em; height: 2em; cursor: pointer; font: inherit; line-height: 1; }
+        #customTabsConfigurationPage .customTabOrderMove:disabled { opacity: .3; cursor: default; }
+        #customTabsConfigurationPage .customTabOrderRow.isPinned { background: rgba(255,255,255,.04); }
+        #customTabsConfigurationPage .customTabOrderExpand { margin-left: .2em; }
+        #customTabsConfigurationPage .customTabOrderDetails { list-style: none; padding: .8em 1em 1em 4.2em; background: rgba(255,255,255,.04); border-top: 1px solid rgba(255,255,255,.08); }
+        #customTabsConfigurationPage .customTabDetailField { margin-bottom: .8em; }
+        #customTabsConfigurationPage .customTabUploadBar { display: flex; align-items: center; gap: 1em; flex-wrap: wrap; margin: .5em 0 .3em; }
+        #customTabsConfigurationPage .customTabUploadPreview { height: 2.5em; max-width: 10em; object-fit: contain; }
+        #customTabsConfigurationPage .customTabDetailField > label { display: block; margin-bottom: .3em; }
+        #customTabsConfigurationPage .customTabDetailField > .customTabCheckboxLabel { display: inline-flex; }
+        #customTabsConfigurationPage .customTabDetailInput { width: 100%; max-width: 28em; box-sizing: border-box; padding: .45em .6em; background: rgba(255,255,255,.08); color: inherit; border: 1px solid rgba(255,255,255,.2); border-radius: .3em; font: inherit; }
+        #customTabsConfigurationPage .customTabSwitch { position: relative; flex: none; width: 2.4em; height: 1.35em; cursor: pointer; }
+        #customTabsConfigurationPage .customTabSwitchSpacer { cursor: default; }
+        #customTabsConfigurationPage .customTabSwitchInput { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+        #customTabsConfigurationPage .customTabSwitchTrack { position: absolute; inset: 0; border-radius: 1em; background: #7a7a7a; transition: background .15s; pointer-events: none; }
+        #customTabsConfigurationPage .customTabSwitchTrack::after { content: ""; position: absolute; top: .15em; left: .15em; width: 1.05em; height: 1.05em; border-radius: 50%; background: #fff; transition: transform .15s; }
+        #customTabsConfigurationPage .customTabSwitchInput:checked + .customTabSwitchTrack { background: #00a4dc; }
+        #customTabsConfigurationPage .customTabSwitchInput:checked + .customTabSwitchTrack::after { transform: translateX(1.05em); }
+        #customTabsConfigurationPage .customTabSwitchInput:focus-visible + .customTabSwitchTrack { outline: 2px solid #00a4dc; outline-offset: 2px; }
+        #customTabsConfigurationPage .customTabOrderRow.isPinned .customTabOrderNumber { opacity: .6; }
+        #customTabsConfigurationPage .customTabOrderRow.isPinned .customTabOrderKind { background: rgba(255,255,255,.18); }
+        #customTabsConfigurationPage .customTabOrderPinnedNote { opacity: .65; font-size: .9em; }
+        #customTabsConfigurationPage .customTabListActions { display: flex; justify-content: flex-end; gap: 1em; margin-bottom: 1em; }
+        #customTabsConfigurationPage .customTabCardHeader .checkboxContainer { margin: 0; }
+        #customTabsConfigurationPage .customTabSection { margin-top: 1.5em; }
+        /* Plain checkboxes, styled here rather than with Jellyfin's emby-checkbox:
+           that element is upgraded by script, and on browsers that need its
+           polyfill (Safari) only some cloned checkboxes were upgraded, so they
+           came out in different sizes. */
+        #customTabsConfigurationPage .customTabCheckboxLabel { display: inline-flex; align-items: center; gap: .6em; cursor: pointer; }
+        #customTabsConfigurationPage .customTabCheckbox { width: 1.25em; height: 1.25em; margin: 0; flex: none; accent-color: #00a4dc; cursor: pointer; }
+        #customTabsConfigurationPage .customTabSection > h3 { margin: 0 0 .8em; padding-bottom: .3em; border-bottom: 1px solid rgba(255,255,255,.1); font-weight: 500; }
+        #customTabsConfigurationPage .customTabCard.customTabDisabled .customTabSection { opacity: .5; }
+        #customTabsConfigurationPage .customTabDisabledBadge { display: none; font-size: .8em; padding: .1em .6em; border-radius: 1em; background: rgba(255,255,255,.15); margin-left: .6em; vertical-align: middle; }
+        #customTabsConfigurationPage .customTabCard.customTabDisabled .customTabDisabledBadge { display: inline-block; }
+    </style>
     <template id="templateCustomTab">
-        <fieldset class="verticalSection-extrabottompadding" data-id="tab-config">
+        <fieldset class="customTabCard" data-id="tab-config">
             <input type="hidden" data-id="hiddenSectionId" />
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="templateDisplayText">Display Text</label>
-                <label class="inputLabel inputLabelUnfocused" for="templateDisplayText"></label>
-                <input id="templateDisplayText" data-id="txtDisplayText" type="text" is="emby-input" min="0" class="emby-input">
-                <div class="fieldDescription">The title of the tab.</div>
+            <div class="customTabCardHeader">
+                <h2 class="sectionTitle customTabHeading">
+                    <button type="button" class="customTabToggle" data-id="btnToggleCard" aria-expanded="true" title="Show or hide this tab's settings">
+                        <span class="customTabChevron" aria-hidden="true"></span>
+                        <span data-id="tabHeading">New Tab</span><span class="customTabDisabledBadge">Disabled</span>
+                    </button>
+                </h2>
+                <div class="checkboxContainer">
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" data-id="chkEnabled" checked />
+                        <span>Enabled</span>
+                    </label>
+                </div>
             </div>
-            <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent">Html Content</label>
-                <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent"></label>
-                <textarea style="display:block;" class="emby-textarea emby-input" id="templateHtmlContent" data-id="templateHtmlContent">
-                </textarea>
-                <div class="fieldDescription">The html that should be displayed when this tab is shown.</div>
+            <div class="customTabBody">
+            <div class="fieldDescription">Turn a tab off to hide it without losing its settings.</div>
+
+            <div class="customTabSection">
+                <h3>Text</h3>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="templateDisplayText">Display Text</label>
+                    <input id="templateDisplayText" data-id="txtDisplayText" type="text" is="emby-input" class="emby-input">
+                    <div class="fieldDescription">The title of the tab. Still used as the tooltip and screen reader label when the text is hidden.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" data-id="chkHideTitle" />
+                        <span>Hide text (show only the icon)</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Only applies when an icon or image is set. The mobile side menu always keeps the text.</div>
+                </div>
             </div>
+
+            <div class="customTabSection">
+                <h3>Placement</h3>
+                <div class="selectContainer">
+                    <label class="selectLabel" for="templatePlacement">Show this tab in</label>
+                    <select is="emby-select" id="templatePlacement" data-id="selPlacement" class="emby-select-withcolor emby-select">
+                        <option value="">Tab bar (left)</option>
+                        <option value="Right">Header icons (right)</option>
+                    </select>
+                    <div class="fieldDescription">Header icons puts a button next to search and the user menu instead of a tab. Set an icon for it; without one the title is shown as text.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" data-id="chkShowInHeader" checked />
+                        <span>Show in the header</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Untick to keep the tab only in the side menu. Enabled (at the top) turns it off everywhere.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" data-id="chkShowInDrawer" checked />
+                        <span>Show in the side menu</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">The menu that opens from the menu button, which lists the tabs on small screens. Works with either placement.</div>
+                </div>
+            </div>
+
+            <div class="customTabSection">
+                <h3>Icon</h3>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="templateIcon">Material icon name</label>
+                    <input id="templateIcon" data-id="txtIcon" type="text" is="emby-input" class="emby-input" placeholder="e.g. movie, live_tv, request_page">
+                    <div class="fieldDescription">Optional. Browse names at <a is="emby-linkbutton" class="button-link" href="https://fonts.google.com/icons?icon.set=Material+Icons" target="_blank">fonts.google.com/icons</a> (Google's Material Icons set, which Jellyfin includes; names from other icon sets such as Material Design Icons won't show).</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="templateImageUrl">Image URL</label>
+                    <input id="templateImageUrl" data-id="txtImageUrl" type="text" is="emby-input" class="emby-input" placeholder="https://example.com/logo.png">
+                    <div class="fieldDescription">Optional. A web address, or filled in for you when you upload a file below. Used instead of the Material icon when both are set.</div>
+                </div>
+                <div class="inputContainer">
+                    <input type="file" data-id="fileImageUpload" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/x-icon,.svg" style="display:none;" />
+                    <div style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">
+                        <button data-id="btnUploadImage" is="emby-button" type="button" class="emby-button raised">
+                            <span>Upload image...</span>
+                        </button>
+                        <button data-id="btnClearImage" is="emby-button" type="button" class="emby-button raised">
+                            <span>Clear image</span>
+                        </button>
+                        <img data-id="imgPreview" alt="" style="display:none;height:2.5em;max-width:10em;object-fit:contain;" />
+                    </div>
+                    <div class="fieldDescription">PNG, JPEG, GIF, WebP, SVG or ICO, up to 2 MB. The file is stored on the Jellyfin server. Click Save to keep it.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" data-id="chkTintImage" />
+                        <span>Match the theme colour</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Redraws the image in the tab text colour, so it follows Jellyfin's theme (and hover and selected states) like the built-in icons. Its detail is kept: light parts get the full colour, darker parts a fainter shade, and a one-colour image is filled in solid. Works best with a transparent background, such as a PNG or SVG; images from other websites only work if that site allows it, uploaded images always do.</div>
+                </div>
+            </div>
+
+            <div class="customTabSection">
+                <h3>Content</h3>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent">HTML Content</label>
+                    <textarea style="display:block;" class="emby-textarea emby-input" id="templateHtmlContent" data-id="templateHtmlContent">
+                    </textarea>
+                    <div class="fieldDescription">The HTML shown when this tab is open.</div>
+                </div>
+            </div>
+
             <button data-id="templateRemoveTab" is="emby-button" type="button" class="emby-button raised block">
                 <span>Remove</span>
             </button>
+            </div>
         </fieldset>
     </template>
     <script type="text/javascript">
@@ -68,14 +249,31 @@
                     e.preventDefault();
                     Dashboard.showLoadingMsg();
                     const config = {
-                        Tabs: []
+                        Tabs: [],
+                        ShowSettingsLink: document.querySelector('#chkShowSettingsLink').checked,
+                        TabOrder: CustomTabsConfig.orderLists.tabs.order.slice(),
+                        HeaderIconOrder: CustomTabsConfig.orderLists.icons.order.slice(),
+                        HiddenTabs: CustomTabsConfig.orderLists.tabs.hidden.slice(),
+                        HiddenHeaderIcons: CustomTabsConfig.orderLists.icons.hidden.slice(),
+                        HiddenDrawerTabs: CustomTabsConfig.orderLists.tabs.drawerHidden.slice(),
+                        TabOverrides: Object.keys(CustomTabsConfig.tabOverrides).map(function (key) {
+                            const o = CustomTabsConfig.tabOverrides[key];
+                            return { Key: key, Title: (o.Title || '').trim(), Icon: (o.Icon || '').trim(), ImageUrl: (o.ImageUrl || '').trim(), HideTitle: !!o.HideTitle, HideIcon: !!o.HideIcon, TintImage: !!o.TintImage };
+                        }).filter(function (o) { return o.Title || o.Icon || o.ImageUrl || o.HideTitle || o.HideIcon; })
                     };
                     
                     // loop over tab configs
                     document.querySelectorAll("[data-id=tab-config]").forEach(tabConfig => {
                         const tab = {
+                            Id: tabConfig.dataset.tabId,
                             Title: tabConfig.querySelector("[data-id=txtDisplayText]").value,
                             ContentHtml: tabConfig.querySelector("[data-id=templateHtmlContent]").value,
+                            Icon: tabConfig.querySelector("[data-id=txtIcon]").value.trim(),
+                            ImageUrl: tabConfig.querySelector("[data-id=txtImageUrl]").value.trim(),
+                            TintImage: tabConfig.querySelector("[data-id=chkTintImage]").checked,
+                            HideTitle: tabConfig.querySelector("[data-id=chkHideTitle]").checked,
+                            Placement: tabConfig.querySelector("[data-id=selPlacement]").value,
+                            Enabled: tabConfig.querySelector("[data-id=chkEnabled]").checked,
                         };
                         
                         config.Tabs.push(tab);
@@ -92,11 +290,36 @@
                 },
                 loadConfig: function () {
                     Dashboard.showLoadingMsg();
-                    window.ApiClient.getPluginConfiguration(CustomTabsConfig.pluginId)
-                        .then(function (config) {
+                    Promise.all([
+                        window.ApiClient.getPluginConfiguration(CustomTabsConfig.pluginId),
+                        CustomTabsConfig.loadLibraryNames()
+                    ])
+                        .then(function (results) {
+                            const config = results[0];
+                            CustomTabsConfig.stockNames = ['Home', 'Favorites'].concat(results[1]);
+                            document.querySelector('#chkShowSettingsLink').checked = config.ShowSettingsLink !== false;
+                            CustomTabsConfig.orderLists.tabs.order = (config.TabOrder || []).slice();
+                            CustomTabsConfig.orderLists.icons.order = (config.HeaderIconOrder || []).slice();
+                            CustomTabsConfig.orderLists.tabs.hidden = (config.HiddenTabs || []).map(function (k) { return String(k).toLowerCase(); });
+                            CustomTabsConfig.orderLists.icons.hidden = (config.HiddenHeaderIcons || []).map(function (k) { return String(k).toLowerCase(); });
+                            CustomTabsConfig.orderLists.tabs.drawerHidden = (config.HiddenDrawerTabs || []).map(function (k) { return String(k).toLowerCase(); });
+                            CustomTabsConfig.tabOverrides = {};
+                            (config.TabOverrides || []).forEach(function (o) {
+                                if (o && o.Key) {
+                                    CustomTabsConfig.tabOverrides[String(o.Key).toLowerCase()] = {
+                                        Title: o.Title || '', Icon: o.Icon || '', ImageUrl: o.ImageUrl || '',
+                                        HideTitle: !!o.HideTitle, HideIcon: !!o.HideIcon, TintImage: !!o.TintImage
+                                    };
+                                }
+                            });
+                            // Draw the order lists once all tabs are in, so new
+                            // entries get their default places
+                            CustomTabsConfig.loading = true;
                             for (var i = 0; i < config.Tabs.length; ++i) {
                                 CustomTabsConfig.addCustomTabConfig(config.Tabs[i]);
                             }
+                            CustomTabsConfig.loading = false;
+                            CustomTabsConfig.renderOrderList();
                         })
                         .catch(function (error) {
                             console.error(error);
@@ -105,16 +328,862 @@
                             Dashboard.hideLoadingMsg();
                         });
                 },
-                init: function () {
-                    CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
-                    CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
-                    CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
-                        if (event.target.getAttribute('data-id') === "templateRemoveTab") {
-                            const el = event.target.closest("[data-id=tab-config]");
-                            CustomTabsConfig.removeTab(el);
+                // --- Info popups --------------------------------------------
+                // Each setting's description moves into a popup on an "info"
+                // icon after its label (a section's next to its heading).
+                // Descriptions appear as cards and panels are drawn, so this
+                // runs whenever the page changes.
+                // The label of the setting a description belongs to: the
+                // nearest label before it, looking at earlier siblings and then
+                // outwards (so a note under the upload buttons goes with Image
+                // URL, and a card's first note with its Enabled switch); a
+                // heading before it for a section's description
+                infoTargetFor: function (description) {
+                    const labelSelector = 'label, .inputLabel, .selectLabel';
+                    const page = document.querySelector('#customTabsConfigurationPage');
+                    let scope = description;
+                    while (scope && scope !== page) {
+                        let el = scope.previousElementSibling;
+                        while (el) {
+                            if (!el.matches('.customTabInfoPopup, input, textarea, select, img')) {
+                                if (el.matches(labelSelector) && el.textContent.trim()) {
+                                    return el;
+                                }
+                                if (el.matches('h1, h2, h3')) {
+                                    return el;
+                                }
+                                const inner = Array.from(el.querySelectorAll(labelSelector))
+                                    .filter(function (l) { return l.textContent.trim() && !l.closest('.customTabInfoPopup'); }).pop();
+                                if (inner) {
+                                    return inner;
+                                }
+                            }
+                            el = el.previousElementSibling;
+                        }
+                        scope = scope.parentElement;
+                    }
+                    return null;
+                },
+                infoize: function () {
+                    const page = document.querySelector('#customTabsConfigurationPage');
+                    if (!page) {
+                        return;
+                    }
+                    page.querySelectorAll('.fieldDescription').forEach(function (description) {
+                        if (description.closest('.customTabInfoPopup, template') || description.getAttribute('data-id') === 'headerIconsHint'
+                            || !description.textContent.trim()) {
+                            return;
+                        }
+                        const target = CustomTabsConfig.infoTargetFor(description);
+                        if (!target) {
+                            return;
+                        }
+
+                        let info = target.querySelector(':scope > .customTabInfo');
+                        if (!info) {
+                            info = document.createElement('span');
+                            info.className = 'customTabInfo';
+                            info.setAttribute('role', 'button');
+                            info.setAttribute('tabindex', '0');
+                            info.setAttribute('aria-label', 'About this setting');
+                            info.setAttribute('aria-expanded', 'false');
+                            const icon = document.createElement('span');
+                            icon.className = 'material-icons info';
+                            icon.setAttribute('aria-hidden', 'true');
+                            const popup = document.createElement('span');
+                            popup.className = 'customTabInfoPopup';
+                            popup.setAttribute('role', 'tooltip');
+                            popup.id = 'customTabInfo' + (++CustomTabsConfig.infoCount);
+                            info.setAttribute('aria-describedby', popup.id);
+                            info.append(icon, popup);
+                            target.appendChild(info);
+                        }
+                        info.querySelector('.customTabInfoPopup').appendChild(description);
+                    });
+                },
+                infoCount: 0,
+                watchInfo: function (page) {
+                    let pending = false;
+                    new MutationObserver(function () {
+                        if (pending) {
+                            return;
+                        }
+                        pending = true;
+                        requestAnimationFrame(function () {
+                            pending = false;
+                            CustomTabsConfig.infoize();
+                        });
+                    }).observe(page, { childList: true, subtree: true });
+
+                    // Tap or Enter opens a popup (for touch screens); clicking
+                    // elsewhere or Escape closes it. Inside a label the click must
+                    // not toggle the label's checkbox.
+                    // Listen on the document, so a tap anywhere closes an open popup
+                    document.addEventListener('click', function (event) {
+                        if (!document.body.contains(page)) {
+                            return;
+                        }
+                        const info = event.target.closest('.customTabInfo');
+                        page.querySelectorAll('.customTabInfo.open').forEach(function (other) {
+                            if (other !== info) {
+                                other.classList.remove('open');
+                                other.setAttribute('aria-expanded', 'false');
+                            }
+                        });
+                        if (!info || event.target.closest('a')) {
+                            return;
+                        }
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!event.target.closest('.customTabInfoPopup')) {
+                            const open = !info.classList.contains('open');
+                            info.classList.toggle('open', open);
+                            info.setAttribute('aria-expanded', String(open));
+                        }
+                    }, true);
+                    page.addEventListener('keydown', function (event) {
+                        const info = event.target.closest && event.target.closest('.customTabInfo');
+                        if (event.key === 'Escape') {
+                            page.querySelectorAll('.customTabInfo.open').forEach(function (other) {
+                                other.classList.remove('open');
+                                other.setAttribute('aria-expanded', 'false');
+                            });
+                            if (info) info.blur();
+                        } else if (info && (event.key === 'Enter' || event.key === ' ')) {
+                            event.preventDefault();
+                            const open = !info.classList.contains('open');
+                            info.classList.toggle('open', open);
+                            info.setAttribute('aria-expanded', String(open));
                         }
                     });
+                },
+                init: function () {
+                    const page = document.querySelector('#customTabsConfigurationPage');
+                    if (page && !page.dataset.infoWatched) {
+                        page.dataset.infoWatched = '1';
+                        CustomTabsConfig.watchInfo(page);
+                        CustomTabsConfig.infoize();
+                    }
+                    CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
+                    CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
+                    document.querySelector("#btnExpandAll").addEventListener("click", () => CustomTabsConfig.setAllCollapsed(false));
+                    document.querySelector("#btnCollapseAll").addEventListener("click", () => CustomTabsConfig.setAllCollapsed(true));
+                    CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
+                        const toggle = event.target.closest("[data-id=btnToggleCard]");
+                        if (toggle) {
+                            const card = toggle.closest("[data-id=tab-config]");
+                            CustomTabsConfig.setCollapsed(card, !card.classList.contains('customTabCollapsed'));
+                            return;
+                        }
+
+                        // Clicks often land on the <span> inside a button
+                        const control = event.target.closest("[data-id]");
+                        const fieldset = event.target.closest("[data-id=tab-config]");
+                        if (!control || !fieldset) {
+                            return;
+                        }
+
+                        switch (control.getAttribute('data-id')) {
+                            case "templateRemoveTab":
+                                CustomTabsConfig.removeTab(fieldset);
+                                break;
+                            case "btnUploadImage":
+                                fieldset.querySelector("[data-id=fileImageUpload]").click();
+                                break;
+                            case "btnClearImage":
+                                fieldset.querySelector("[data-id=txtImageUrl]").value = '';
+                                CustomTabsConfig.updatePreview(fieldset);
+                                break;
+                        }
+                    });
+                    CustomTabsConfig.configurationWrapper.addEventListener("change", (event) => {
+                        if (event.target.getAttribute('data-id') === "chkShowInHeader") {
+                            const card = event.target.closest("[data-id=tab-config]");
+                            CustomTabsConfig.setInHeader('custom:' + card.dataset.tabId, event.target.checked);
+                            CustomTabsConfig.renderOrderList();
+                            return;
+                        }
+                        if (event.target.getAttribute('data-id') === "chkShowInDrawer") {
+                            const card = event.target.closest("[data-id=tab-config]");
+                            CustomTabsConfig.setInDrawer('custom:' + card.dataset.tabId, event.target.checked);
+                            CustomTabsConfig.renderOrderList();
+                            return;
+                        }
+                        if (event.target.getAttribute('data-id') === "chkEnabled" || event.target.getAttribute('data-id') === "selPlacement") {
+                            CustomTabsConfig.updateCardState(event.target.closest("[data-id=tab-config]"));
+                            return;
+                        }
+
+                        if (event.target.getAttribute('data-id') !== "fileImageUpload") {
+                            return;
+                        }
+
+                        const input = event.target;
+                        const file = input.files && input.files[0];
+                        if (file) {
+                            CustomTabsConfig.uploadImage(input.closest("[data-id=tab-config]"), file);
+                        }
+                        // Allow choosing the same file again
+                        input.value = '';
+                    });
+                    CustomTabsConfig.configurationWrapper.addEventListener("input", (event) => {
+                        const fieldset = event.target.closest("[data-id=tab-config]");
+                        const id = event.target.getAttribute('data-id');
+                        if (id === "txtImageUrl") {
+                            CustomTabsConfig.updatePreview(fieldset);
+                        } else if (id === "txtDisplayText") {
+                            CustomTabsConfig.updateCardState(fieldset);
+                        }
+                    });
+                    document.querySelectorAll(".customTabOrderList").forEach((listElement) => {
+                        const name = listElement.getAttribute('data-list');
+                        // Typing in a tab's panel updates its override in place,
+                        // without redrawing the list (which would lose focus)
+                        const onOverride = (event) => {
+                            const prop = event.target.getAttribute('data-ov-field');
+                            if (!prop) {
+                                return false;
+                            }
+                            const key = event.target.closest('[data-details-for]').getAttribute('data-details-for');
+                            const o = CustomTabsConfig.overrideFor(key);
+                            o[prop] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
+                            if (prop === 'ImageUrl') {
+                                const preview = event.target.closest('.customTabDetailField').querySelector('[data-ov-preview]');
+                                const url = event.target.value.trim();
+                                if (preview && url) {
+                                    preview.src = CustomTabsConfig.resolveImageUrl(url);
+                                    preview.style.display = '';
+                                } else if (preview) {
+                                    preview.removeAttribute('src');
+                                    preview.style.display = 'none';
+                                }
+                            }
+                            const rowName = listElement.querySelector('[data-key="' + CSS.escape(key) + '"] .customTabOrderName');
+                            const rowEl = rowName && rowName.closest('[data-key]');
+                            if (rowName) {
+                                const entry = CustomTabsConfig.orderLists[name].entries().find(function (e) { return e.key === key; });
+                                if (entry) {
+                                    rowName.textContent = CustomTabsConfig.rowName(name, entry, !rowEl.classList.contains('isDisabled'));
+                                }
+                            }
+                            return true;
+                        };
+                        listElement.addEventListener("input", onOverride);
+                        listElement.addEventListener("change", (event) => {
+                            if (event.target.hasAttribute('data-header-toggle')) {
+                                const key = event.target.getAttribute('data-header-toggle');
+                                CustomTabsConfig.setInHeader(key, event.target.checked);
+                                const rowName = listElement.querySelector('[data-key="' + CSS.escape(key) + '"] .customTabOrderName');
+                                const entry = CustomTabsConfig.orderLists.tabs.entries().find(function (e) { return e.key === key; });
+                                if (rowName && entry) {
+                                    rowName.textContent = CustomTabsConfig.rowName('tabs', entry, !rowName.closest('[data-key]').classList.contains('isDisabled'));
+                                }
+                                return;
+                            }
+                            if (event.target.hasAttribute('data-drawer-toggle')) {
+                                const key = event.target.getAttribute('data-drawer-toggle');
+                                CustomTabsConfig.setInDrawer(key, event.target.checked);
+                                const rowName = listElement.querySelector('[data-key="' + CSS.escape(key) + '"] .customTabOrderName');
+                                const entry = CustomTabsConfig.orderLists.tabs.entries().find(function (e) { return e.key === key; });
+                                if (rowName && entry) {
+                                    rowName.textContent = CustomTabsConfig.rowName('tabs', entry, !rowName.closest('[data-key]').classList.contains('isDisabled'));
+                                }
+                                return;
+                            }
+                            if (event.target.hasAttribute('data-ov-file')) {
+                                const input = event.target;
+                                const file = input.files && input.files[0];
+                                const wrap = input.closest('.customTabDetailField');
+                                if (file) {
+                                    CustomTabsConfig.uploadImageFile(file).then(function (url) {
+                                        if (url) {
+                                            CustomTabsConfig.setPanelImage(wrap, url, true);
+                                        }
+                                    });
+                                }
+                                input.value = '';
+                                return;
+                            }
+                            if (onOverride(event)) {
+                                return;
+                            }
+                            if (event.target.classList.contains('customTabSwitchInput')) {
+                                const row = event.target.closest('[data-key]');
+                                CustomTabsConfig.setShown(name, row.getAttribute('data-key'), event.target.checked);
+                                return;
+                            }
+                            if (event.target.classList.contains('customTabOrderNumber')) {
+                                const row = event.target.closest('[data-key]');
+                                CustomTabsConfig.moveInOrder(name, row.getAttribute('data-key'), parseInt(event.target.value, 10) - 1);
+                            }
+                        });
+                        listElement.addEventListener("click", (event) => {
+                            const expand = event.target.closest('.customTabOrderExpand');
+                            if (expand) {
+                                const key = expand.closest('[data-key]').getAttribute('data-key');
+                                const expandedKeys = CustomTabsConfig.orderLists[name].expanded;
+                                const at = expandedKeys.indexOf(key);
+                                if (at === -1) expandedKeys.push(key); else expandedKeys.splice(at, 1);
+                                CustomTabsConfig.renderOrder(name);
+                                return;
+                            }
+                            const uploadButton = event.target.closest('[data-ov-upload]');
+                            if (uploadButton) {
+                                uploadButton.closest('.customTabDetailField').querySelector('[data-ov-file]').click();
+                                return;
+                            }
+                            const clearButton = event.target.closest('[data-ov-clear]');
+                            if (clearButton) {
+                                CustomTabsConfig.setPanelImage(clearButton.closest('.customTabDetailField'), '', true);
+                                return;
+                            }
+                            const editCard = event.target.closest('[data-edit-card]');
+                            if (editCard) {
+                                const card = Array.from(document.querySelectorAll("[data-id=tab-config]"))
+                                    .find(function (c) { return c.dataset.tabId === editCard.getAttribute('data-edit-card'); });
+                                if (card) {
+                                    CustomTabsConfig.setCollapsed(card, false);
+                                    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }
+                                return;
+                            }
+                            const button = event.target.closest('.customTabOrderMove');
+                            if (button) {
+                                const row = button.closest('[data-key]');
+                                const index = CustomTabsConfig.orderLists[name].order.indexOf(row.getAttribute('data-key'));
+                                CustomTabsConfig.moveInOrder(name, row.getAttribute('data-key'), index + parseInt(button.getAttribute('data-step'), 10));
+                            }
+                        });
+                    });
                     CustomTabsConfig.loadConfig();
+                },
+                // --- Tab order -------------------------------------------
+                // Keys: "stock:<label>" for Jellyfin's tabs, matched on their
+                // label in the header, and "custom:<id>" for custom tabs.
+                orderLists: {
+                    tabs: { element: '#tabOrderList', order: [], hidden: [], drawerHidden: [], expanded: [], entries: function () { return CustomTabsConfig.tabOrderEntries(); } },
+                    icons: { element: '#headerIconOrderList', order: [], hidden: [], entries: function () { return CustomTabsConfig.headerIconEntries(); } }
+                },
+                stockNames: ['Home', 'Favorites'],
+                newId: function () {
+                    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                        return window.crypto.randomUUID().replace(/-/g, '');
+                    }
+                    let id = '';
+                    for (let i = 0; i < 32; i++) {
+                        id += Math.floor(Math.random() * 16).toString(16);
+                    }
+                    return id;
+                },
+                loadLibraryNames: function () {
+                    const apiClient = window.ApiClient;
+                    if (typeof apiClient.getUserViews !== 'function') {
+                        return Promise.resolve([]);
+                    }
+
+                    return Promise.resolve(apiClient.getUserViews({}, apiClient.getCurrentUserId()))
+                        .then(function (result) {
+                            return ((result && result.Items) || []).map(function (item) { return item.Name; }).filter(Boolean);
+                        })
+                        .catch(function (error) {
+                            console.warn('CustomTabs: could not load libraries for the tab order', error);
+                            return [];
+                        });
+                },
+                stockEntry: function (name) {
+                    return { key: 'stock:' + name.replace(/\s+/g, ' ').trim().toLowerCase(), name: name, custom: false, disabled: false };
+                },
+                customEntries: function (rightPlaced) {
+                    const entries = [];
+                    document.querySelectorAll("[data-id=tab-config]").forEach(function (card) {
+                        if ((card.querySelector('[data-id=selPlacement]').value === 'Right') !== rightPlaced) {
+                            return;
+                        }
+                        entries.push({
+                            key: 'custom:' + card.dataset.tabId,
+                            name: card.querySelector('[data-id=txtDisplayText]').value.trim() || 'Untitled tab',
+                            custom: true,
+                            disabled: !card.querySelector('[data-id=chkEnabled]').checked
+                        });
+                    });
+                    return entries;
+                },
+                // Default order: Jellyfin's tabs, then custom tab-bar tabs
+                tabOrderEntries: function () {
+                    return CustomTabsConfig.stockNames.map(CustomTabsConfig.stockEntry)
+                        .concat(CustomTabsConfig.customEntries(false));
+                },
+                // Jellyfin's header icons as last seen by the plugin in this
+                // browser (see recordHeaderIcons in addCustomTabs.js)
+                seenHeaderIcons: function () {
+                    try {
+                        const labels = JSON.parse(window.localStorage.getItem('customTabs.headerIcons') || '[]');
+                        return Array.isArray(labels) ? labels.filter(function (l) { return typeof l === 'string' && l.trim(); }) : [];
+                    } catch (e) {
+                        return [];
+                    }
+                },
+                // Default order: custom header buttons, then Jellyfin's icons
+                headerIconEntries: function () {
+                    // The user menu is pinned (see pinnedRow), so a label recorded
+                    // for it by an earlier version isn't offered as movable
+                    const stock = CustomTabsConfig.seenHeaderIcons()
+                        .filter(function (label) { return !/^(user menu|account|my account|profile|user profile)$/i.test(label.trim()); })
+                        .map(CustomTabsConfig.stockEntry);
+                    document.querySelector('[data-id=headerIconsHint]').style.display = stock.length ? 'none' : '';
+                    return CustomTabsConfig.customEntries(true).concat(stock);
+                },
+                loading: false,
+                renderOrderList: function () {
+                    if (CustomTabsConfig.loading) {
+                        return;
+                    }
+                    CustomTabsConfig.renderOrder('tabs');
+                    CustomTabsConfig.renderOrder('icons');
+                },
+                // Keeps the saved order for entries that still exist and puts
+                // anything new at the end, then redraws the numbered list
+                renderOrder: function (listName) {
+                    const state = CustomTabsConfig.orderLists[listName];
+                    const entries = state.entries();
+                    const byKey = {};
+                    entries.forEach(function (entry) { byKey[entry.key] = entry; });
+
+                    // Something new (a library, or an icon a plugin added since
+                    // the order was saved) goes next to its neighbours in the
+                    // default order (just before the next one already listed,
+                    // else just after the previous one), not at the very end,
+                    // so e.g. a new header icon doesn't land after the user menu
+                    const ordered = state.order.filter(function (key) { return byKey[key]; });
+                    entries.forEach(function (entry, i) {
+                        if (ordered.indexOf(entry.key) !== -1) {
+                            return;
+                        }
+                        for (let j = i + 1; j < entries.length; j++) {
+                            const next = ordered.indexOf(entries[j].key);
+                            if (next !== -1) {
+                                ordered.splice(next, 0, entry.key);
+                                return;
+                            }
+                        }
+                        let at = ordered.length;
+                        for (let j = i - 1; j >= 0; j--) {
+                            const previous = ordered.indexOf(entries[j].key);
+                            if (previous !== -1) {
+                                at = previous + 1;
+                                break;
+                            }
+                        }
+                        ordered.splice(at, 0, entry.key);
+                    });
+                    state.order = ordered;
+
+                    const list = document.querySelector(state.element);
+                    list.innerHTML = '';
+                    ordered.forEach(function (key, i) {
+                        const entry = byKey[key];
+                        // Custom tabs are shown when enabled; Jellyfin's own
+                        // when not in the hidden list
+                        const shown = entry.custom ? !entry.disabled : state.hidden.indexOf(key) === -1;
+                        const row = document.createElement('li');
+                        row.className = 'customTabOrderRow' + (entry.custom ? ' isCustom' : '') + (shown ? '' : ' isDisabled');
+                        row.setAttribute('data-key', key);
+
+                        const number = document.createElement('input');
+                        number.type = 'number';
+                        number.min = '1';
+                        number.max = String(ordered.length);
+                        number.value = String(i + 1);
+                        number.className = 'customTabOrderNumber';
+                        number.setAttribute('aria-label', 'Position of ' + entry.name);
+
+                        const name = document.createElement('span');
+                        name.className = 'customTabOrderName';
+                        name.textContent = CustomTabsConfig.rowName(listName, entry, shown);
+
+                        const kind = document.createElement('span');
+                        kind.className = 'customTabOrderKind';
+                        kind.textContent = entry.custom ? 'Custom' : 'Jellyfin';
+
+                        const up = document.createElement('button');
+                        up.type = 'button';
+                        up.className = 'customTabOrderMove';
+                        up.setAttribute('data-step', '-1');
+                        up.setAttribute('aria-label', 'Move ' + entry.name + ' up');
+                        up.textContent = '\u2191';
+                        up.disabled = i === 0;
+
+                        const down = document.createElement('button');
+                        down.type = 'button';
+                        down.className = 'customTabOrderMove';
+                        down.setAttribute('data-step', '1');
+                        down.setAttribute('aria-label', 'Move ' + entry.name + ' down');
+                        down.textContent = '\u2193';
+                        down.disabled = i === ordered.length - 1;
+
+                        row.append(CustomTabsConfig.visibilitySwitch(entry.name, shown), number, name, kind, up, down);
+
+                        // Tab order rows open a panel with that tab's settings
+                        const expanded = listName === 'tabs' && state.expanded.indexOf(key) !== -1;
+                        if (listName === 'tabs') {
+                            const more = document.createElement('button');
+                            more.type = 'button';
+                            more.className = 'customTabOrderMove customTabOrderExpand';
+                            more.setAttribute('aria-expanded', String(expanded));
+                            more.setAttribute('aria-label', (expanded ? 'Hide' : 'Show') + ' settings for ' + entry.name);
+                            more.textContent = expanded ? '\u25B4' : '\u25BE';
+                            row.appendChild(more);
+                        }
+                        list.appendChild(row);
+
+                        if (expanded) {
+                            list.appendChild(CustomTabsConfig.tabDetails(key, entry));
+                        }
+                    });
+
+                    // The user menu can't be moved (it is always kept at the
+                    // right end of the header), so it is shown as a fixed last
+                    // row for reference and isn't part of the saved order
+                    if (listName === 'icons') {
+                        list.appendChild(CustomTabsConfig.pinnedRow(ordered.length + 1, 'User menu (profile picture)',
+                            'Always stays at the right end of the header'));
+                    }
+                },
+                // --- Built-in tab overrides ------------------------------
+                // Changes to Jellyfin's own tabs, keyed like the order
+                tabOverrides: {},
+                overrideFor: function (key) {
+                    if (!CustomTabsConfig.tabOverrides[key]) {
+                        CustomTabsConfig.tabOverrides[key] = { Title: '', Icon: '', ImageUrl: '', HideTitle: false, HideIcon: false };
+                    }
+                    return CustomTabsConfig.tabOverrides[key];
+                },
+                rowName: function (listName, entry, shown) {
+                    let text = entry.name;
+                    const o = listName === 'tabs' && !entry.custom ? CustomTabsConfig.tabOverrides[entry.key] : null;
+                    if (o && o.Title && o.Title.trim()) {
+                        text += ' \u2192 ' + o.Title.trim();
+                    }
+                    const notes = [];
+                    if (o && o.HideTitle) notes.push('no text');
+                    if (o && o.HideIcon) notes.push('no icon');
+                    else if (o && (o.Icon || o.ImageUrl)) notes.push(o.ImageUrl && o.TintImage ? 'new icon, theme colour' : 'new icon');
+                    if (!shown) notes.push(entry.custom ? 'disabled' : 'hidden in header');
+                    if (entry.custom && CustomTabsConfig.orderLists.tabs.hidden.indexOf(entry.key) !== -1) notes.push('not in header');
+                    if (CustomTabsConfig.orderLists.tabs.drawerHidden.indexOf(entry.key) !== -1) notes.push('not in side menu');
+                    return text + (notes.length ? ' (' + notes.join(', ') + ')' : '');
+                },
+                // The panel under an opened Tab order row
+                tabDetails: function (key, entry) {
+                    const li = document.createElement('li');
+                    li.className = 'customTabOrderDetails';
+                    li.setAttribute('data-details-for', key);
+
+                    if (entry.custom) {
+                        li.appendChild(CustomTabsConfig.headerToggle(key));
+                        li.appendChild(CustomTabsConfig.drawerToggle(key));
+                        const note = document.createElement('div');
+                        note.className = 'fieldDescription';
+                        note.textContent = 'This is a custom tab. Its text, icon and content are set in its card in the Tabs section below.';
+                        const open = document.createElement('button');
+                        open.type = 'button';
+                        open.className = 'emby-button raised';
+                        open.setAttribute('data-edit-card', key.substring(7));
+                        open.textContent = 'Open its settings';
+                        li.append(note, open);
+                        return li;
+                    }
+
+                    const o = CustomTabsConfig.tabOverrides[key] || {};
+                    const field = function (labelText, prop, type, placeholder, help) {
+                        const wrap = document.createElement('div');
+                        wrap.className = 'customTabDetailField';
+                        const label = document.createElement('label');
+                        const input = document.createElement('input');
+                        input.type = type;
+                        input.setAttribute('data-ov-field', prop);
+                        if (type === 'checkbox') {
+                            input.className = 'customTabCheckbox';
+                            input.checked = !!o[prop];
+                            label.className = 'customTabCheckboxLabel';
+                            const span = document.createElement('span');
+                            span.textContent = labelText;
+                            label.append(input, span);
+                            wrap.appendChild(label);
+                        } else {
+                            input.className = 'customTabDetailInput';
+                            input.value = o[prop] || '';
+                            input.placeholder = placeholder || '';
+                            label.textContent = labelText;
+                            wrap.append(label, input);
+                        }
+                        if (help) {
+                            const d = document.createElement('div');
+                            d.className = 'fieldDescription';
+                            d.textContent = help;
+                            wrap.appendChild(d);
+                        }
+                        return wrap;
+                    };
+
+                    li.append(
+                        field('Display text', 'Title', 'text', entry.name, 'Leave empty to keep Jellyfin\'s name.'),
+                        field('Hide text (show only the icon)', 'HideTitle', 'checkbox'),
+                        CustomTabsConfig.withIconLink(field('Material icon name', 'Icon', 'text', 'e.g. movie, live_tv, favorite', 'Replaces Jellyfin\'s icon. Leave empty to keep it.')),
+                        CustomTabsConfig.withUpload(field('Image URL', 'ImageUrl', 'text', 'https://example.com/logo.png', 'Used instead of the Material icon when both are set: a web address, or upload a file below.'), o.ImageUrl),
+                        field('Match the theme colour', 'TintImage', 'checkbox', '', "Redraws the image in the tab text colour, so it follows Jellyfin\'s theme (and hover and selected states) like the built-in icons. Its detail is kept: light parts get the full colour, darker parts a fainter shade, and a one-colour image is filled in solid. Works best with a transparent background, such as a PNG or SVG; images from other websites only work if that site allows it, uploaded images always do."),
+                        field('Hide icon', 'HideIcon', 'checkbox')
+                    );
+                    li.appendChild(CustomTabsConfig.drawerToggle(key));
+                    const scope = document.createElement('div');
+                    scope.className = 'fieldDescription';
+                    scope.textContent = 'Applies to the newer header layout. The side menu on small screens keeps the text. The switch at the start of the row shows or hides the tab in the header only.';
+                    li.appendChild(scope);
+                    return li;
+                },
+                // One place for the side menu setting, which a custom tab's card
+                // and its Tab order panel both show
+                setInDrawer: function (key, shown) {
+                    const list = CustomTabsConfig.orderLists.tabs.drawerHidden;
+                    const at = list.indexOf(key);
+                    if (shown && at !== -1) list.splice(at, 1);
+                    if (!shown && at === -1) list.push(key);
+                    if (key.indexOf('custom:') === 0) {
+                        const id = key.substring(7);
+                        const card = Array.from(document.querySelectorAll("[data-id=tab-config]"))
+                            .find(function (c) { return c.dataset.tabId === id; });
+                        const box = card && card.querySelector('[data-id=chkShowInDrawer]');
+                        if (box && box.checked !== shown) {
+                            box.checked = shown;
+                        }
+                    }
+                },
+                // Header visibility of a custom tab, shown on its card and in
+                // its Tab order panel. Stored with Jellyfin's tabs in HiddenTabs.
+                setInHeader: function (key, shown) {
+                    const list = CustomTabsConfig.orderLists.tabs.hidden;
+                    const at = list.indexOf(key);
+                    if (shown && at !== -1) list.splice(at, 1);
+                    if (!shown && at === -1) list.push(key);
+                    const id = key.substring(7);
+                    const card = Array.from(document.querySelectorAll("[data-id=tab-config]"))
+                        .find(function (c) { return c.dataset.tabId === id; });
+                    const box = card && card.querySelector('[data-id=chkShowInHeader]');
+                    if (box && box.checked !== shown) {
+                        box.checked = shown;
+                    }
+                },
+                // "Show in the header" checkbox for a custom tab's panel
+                headerToggle: function (key) {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'customTabDetailField';
+                    const label = document.createElement('label');
+                    label.className = 'customTabCheckboxLabel';
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'customTabCheckbox';
+                    input.setAttribute('data-header-toggle', key);
+                    input.checked = CustomTabsConfig.orderLists.tabs.hidden.indexOf(key) === -1;
+                    const span = document.createElement('span');
+                    span.textContent = 'Show in the header';
+                    label.append(input, span);
+                    const help = document.createElement('div');
+                    help.className = 'fieldDescription';
+                    help.textContent = 'Untick to keep the tab only in the side menu. The switch at the start of the row (Enabled) turns it off everywhere.';
+                    wrap.append(label, help);
+                    return wrap;
+                },
+                // "Show in the side menu" checkbox for a Tab order panel
+                drawerToggle: function (key) {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'customTabDetailField';
+                    const label = document.createElement('label');
+                    label.className = 'customTabCheckboxLabel';
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'customTabCheckbox';
+                    input.setAttribute('data-drawer-toggle', key);
+                    input.checked = CustomTabsConfig.orderLists.tabs.drawerHidden.indexOf(key) === -1;
+                    const span = document.createElement('span');
+                    span.textContent = 'Show in the side menu';
+                    label.append(input, span);
+                    const help = document.createElement('div');
+                    help.className = 'fieldDescription';
+                    help.textContent = 'The menu that opens from the menu button, which lists the tabs on small screens.';
+                    wrap.append(label, help);
+                    return wrap;
+                },
+                // Adds the icon browser link to a Material icon field's help
+                withIconLink: function (wrap) {
+                    const help = wrap.querySelector('.fieldDescription');
+                    help.appendChild(document.createTextNode(' Browse names at '));
+                    const a = document.createElement('a');
+                    a.href = 'https://fonts.google.com/icons?icon.set=Material+Icons';
+                    a.target = '_blank';
+                    a.rel = 'noopener';
+                    a.className = 'button-link';
+                    a.textContent = 'fonts.google.com/icons';
+                    help.appendChild(a);
+                    help.appendChild(document.createTextNode(' (Google\'s Material Icons set, which Jellyfin includes; names from other icon sets such as Material Design Icons won\'t show).'));
+                    return wrap;
+                },
+                // Upload / clear buttons and a preview under an Image URL field
+                withUpload: function (wrap, url) {
+                    const bar = document.createElement('div');
+                    bar.className = 'customTabUploadBar';
+
+                    const file = document.createElement('input');
+                    file.type = 'file';
+                    file.accept = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/x-icon,.svg';
+                    file.style.display = 'none';
+                    file.setAttribute('data-ov-file', '1');
+
+                    const upload = document.createElement('button');
+                    upload.type = 'button';
+                    upload.className = 'emby-button raised';
+                    upload.setAttribute('data-ov-upload', '1');
+                    upload.textContent = 'Upload image...';
+
+                    const clear = document.createElement('button');
+                    clear.type = 'button';
+                    clear.className = 'emby-button raised';
+                    clear.setAttribute('data-ov-clear', '1');
+                    clear.textContent = 'Clear image';
+
+                    const preview = document.createElement('img');
+                    preview.alt = '';
+                    preview.className = 'customTabUploadPreview';
+                    preview.setAttribute('data-ov-preview', '1');
+
+                    bar.append(file, upload, clear, preview);
+                    const help = wrap.querySelector('.fieldDescription');
+                    wrap.insertBefore(bar, help);
+                    const note = document.createElement('div');
+                    note.className = 'fieldDescription';
+                    note.textContent = 'PNG, JPEG, GIF, WebP, SVG or ICO, up to 2 MB. The file is stored on the Jellyfin server. Click Save to keep it.';
+                    wrap.appendChild(note);
+                    CustomTabsConfig.setPanelImage(wrap, url || '', false);
+                    return wrap;
+                },
+                // Sets a panel's Image URL field, preview and override
+                setPanelImage: function (wrap, url, store) {
+                    const input = wrap.querySelector('[data-ov-field=ImageUrl]');
+                    const preview = wrap.querySelector('[data-ov-preview]');
+                    input.value = url;
+                    if (url) {
+                        preview.src = CustomTabsConfig.resolveImageUrl(url);
+                        preview.style.display = '';
+                    } else {
+                        preview.removeAttribute('src');
+                        preview.style.display = 'none';
+                    }
+                    if (store) {
+                        // Let the field's own input handler store it and update the row
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                },
+                // Show/hide switch at the start of each row
+                visibilitySwitch: function (name, shown) {
+                    const label = document.createElement('label');
+                    label.className = 'customTabSwitch';
+                    label.title = shown ? 'Shown in the header. Switch off to hide it.' : 'Hidden from the header. Switch on to show it.';
+
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'customTabSwitchInput';
+                    input.checked = shown;
+                    input.setAttribute('aria-label', 'Show ' + name);
+
+                    const track = document.createElement('span');
+                    track.className = 'customTabSwitchTrack';
+                    track.setAttribute('aria-hidden', 'true');
+
+                    label.append(input, track);
+                    return label;
+                },
+                // Custom tabs map onto their card's Enabled switch; Jellyfin's
+                // own tabs and icons onto the list's hidden keys
+                setShown: function (listName, key, shown) {
+                    if (key.indexOf('custom:') === 0) {
+                        const id = key.substring(7);
+                        const card = Array.from(document.querySelectorAll("[data-id=tab-config]"))
+                            .find(function (c) { return c.dataset.tabId === id; });
+                        if (card) {
+                            card.querySelector('[data-id=chkEnabled]').checked = shown;
+                            CustomTabsConfig.updateCardState(card);
+                        }
+                        return;
+                    }
+
+                    const hidden = CustomTabsConfig.orderLists[listName].hidden;
+                    const at = hidden.indexOf(key);
+                    if (shown && at !== -1) {
+                        hidden.splice(at, 1);
+                    } else if (!shown && at === -1) {
+                        hidden.push(key);
+                    }
+                    CustomTabsConfig.renderOrder(listName);
+                },
+                pinnedRow: function (position, title, note) {
+                    const row = document.createElement('li');
+                    row.className = 'customTabOrderRow isPinned';
+                    row.title = note;
+
+                    const number = document.createElement('input');
+                    number.type = 'number';
+                    number.value = String(position);
+                    number.disabled = true;
+                    number.className = 'customTabOrderNumber';
+                    number.setAttribute('aria-label', title + ' is fixed at position ' + position);
+
+                    const name = document.createElement('span');
+                    name.className = 'customTabOrderName';
+                    name.textContent = title;
+                    const hint = document.createElement('span');
+                    hint.className = 'customTabOrderPinnedNote';
+                    hint.textContent = ' \u2013 ' + note;
+                    name.appendChild(hint);
+
+                    const kind = document.createElement('span');
+                    kind.className = 'customTabOrderKind';
+                    kind.textContent = '\uD83D\uDD12 Pinned';
+
+                    const up = document.createElement('button');
+                    up.type = 'button';
+                    up.className = 'customTabOrderMove';
+                    up.textContent = '\u2191';
+                    up.disabled = true;
+                    up.setAttribute('aria-hidden', 'true');
+                    up.tabIndex = -1;
+
+                    const down = up.cloneNode(true);
+                    down.textContent = '\u2193';
+
+                    const spacer = document.createElement('span');
+                    spacer.className = 'customTabSwitch customTabSwitchSpacer';
+                    spacer.title = 'Always shown';
+
+                    row.append(spacer, number, name, kind, up, down);
+                    return row;
+                },
+                moveInOrder: function (listName, key, newIndex) {
+                    const state = CustomTabsConfig.orderLists[listName];
+                    const order = state.order;
+                    const from = order.indexOf(key);
+                    if (from === -1 || isNaN(newIndex)) {
+                        CustomTabsConfig.renderOrder(listName);
+                        return;
+                    }
+
+                    const to = Math.max(0, Math.min(order.length - 1, newIndex));
+                    order.splice(from, 1);
+                    order.splice(to, 0, key);
+                    CustomTabsConfig.renderOrder(listName);
+
+                    const input = document.querySelector(state.element + ' [data-key="' + CSS.escape(key) + '"] .customTabOrderNumber');
+                    if (input) {
+                        input.focus();
+                    }
                 },
                 addCustomTabNew: function() {
                     const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
@@ -122,18 +1191,128 @@
                     template.querySelector('[data-id=txtDisplayText]').value = 'New Tab';
                     template.querySelector('[data-id=templateHtmlContent]').value = '';
 
-                    const el = CustomTabsConfig.configurationWrapper.appendChild(template);
+                    const fieldset = template.querySelector('[data-id=tab-config]');
+                    fieldset.dataset.tabId = CustomTabsConfig.newId();
+                    CustomTabsConfig.configurationWrapper.appendChild(template);
+                    CustomTabsConfig.updatePreview(fieldset);
+                    CustomTabsConfig.updateCardState(fieldset);
+                    // A new tab opens expanded so it can be filled in straight away
+                    CustomTabsConfig.setCollapsed(fieldset, false);
+                    fieldset.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 },
                 addCustomTabConfig: function(tabConfig) {
                     const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
                     //template.querySelector('[data-id=hiddenSectionId]').value = tabConfig.SectionId;
                     template.querySelector('[data-id=txtDisplayText]').value = tabConfig.Title;
                     template.querySelector('[data-id=templateHtmlContent]').value = tabConfig.ContentHtml;
+                    template.querySelector('[data-id=txtIcon]').value = tabConfig.Icon || '';
+                    template.querySelector('[data-id=txtImageUrl]').value = tabConfig.ImageUrl || '';
+                    template.querySelector('[data-id=chkTintImage]').checked = !!tabConfig.TintImage;
+                    template.querySelector('[data-id=chkHideTitle]').checked = !!tabConfig.HideTitle;
+                    template.querySelector('[data-id=selPlacement]').value = tabConfig.Placement === 'Right' ? 'Right' : '';
+                    // Tabs saved before this setting existed have no Enabled value
+                    template.querySelector('[data-id=chkEnabled]').checked = tabConfig.Enabled !== false;
 
-                    const el = CustomTabsConfig.configurationWrapper.appendChild(template);
+                    const fieldset = template.querySelector('[data-id=tab-config]');
+                    // Tabs saved before ordering existed get an id here, kept on Save
+                    fieldset.dataset.tabId = (tabConfig.Id || CustomTabsConfig.newId()).toLowerCase();
+                    fieldset.querySelector('[data-id=chkShowInDrawer]').checked =
+                        CustomTabsConfig.orderLists.tabs.drawerHidden.indexOf('custom:' + fieldset.dataset.tabId) === -1;
+                    fieldset.querySelector('[data-id=chkShowInHeader]').checked =
+                        CustomTabsConfig.orderLists.tabs.hidden.indexOf('custom:' + fieldset.dataset.tabId) === -1;
+                    CustomTabsConfig.configurationWrapper.appendChild(template);
+                    CustomTabsConfig.updatePreview(fieldset);
+                    CustomTabsConfig.updateCardState(fieldset);
+                    // Saved tabs start collapsed so the list is easy to scan
+                    CustomTabsConfig.setCollapsed(fieldset, true);
+                },
+                setCollapsed: function(fieldset, collapsed) {
+                    fieldset.classList.toggle('customTabCollapsed', collapsed);
+                    fieldset.querySelector('[data-id=btnToggleCard]').setAttribute('aria-expanded', String(!collapsed));
+                },
+                setAllCollapsed: function(collapsed) {
+                    document.querySelectorAll("[data-id=tab-config]").forEach(card => CustomTabsConfig.setCollapsed(card, collapsed));
+                },
+                // Uploaded images are stored as a server path; route it
+                // through getUrl so it works when Jellyfin has a base URL.
+                resolveImageUrl: function(url) {
+                    return url.indexOf('CustomTabs/Images/') === 0 ? window.ApiClient.getUrl(url) : url;
+                },
+                // Mirrors the title into the card heading and dims disabled tabs
+                updateCardState: function(fieldset) {
+                    const title = fieldset.querySelector('[data-id=txtDisplayText]').value.trim();
+                    fieldset.querySelector('[data-id=tabHeading]').textContent = title || 'Untitled tab';
+                    fieldset.classList.toggle('customTabDisabled', !fieldset.querySelector('[data-id=chkEnabled]').checked);
+                    CustomTabsConfig.renderOrderList();
+                },
+                updatePreview: function(fieldset) {
+                    const url = fieldset.querySelector('[data-id=txtImageUrl]').value.trim();
+                    const preview = fieldset.querySelector('[data-id=imgPreview]');
+                    if (url) {
+                        preview.src = CustomTabsConfig.resolveImageUrl(url);
+                        preview.style.display = '';
+                    } else {
+                        preview.removeAttribute('src');
+                        preview.style.display = 'none';
+                    }
+                },
+                uploadImage: function(fieldset, file) {
+                    CustomTabsConfig.uploadImageFile(file).then(function (url) {
+                        if (url) {
+                            fieldset.querySelector('[data-id=txtImageUrl]').value = url;
+                            CustomTabsConfig.updatePreview(fieldset);
+                        }
+                    });
+                },
+                // Uploads an image and resolves with its server path, or null
+                // when it was rejected (the reason has been shown already)
+                uploadImageFile: function(file) {
+                    if (file.size > 2 * 1024 * 1024) {
+                        Dashboard.alert('Images must be 2 MB or smaller.');
+                        return Promise.resolve(null);
+                    }
+
+                    // ApiClient.ajax form-encodes any body that isn't a string,
+                    // which empties a File, so send it with fetch and add the
+                    // auth header ourselves.
+                    const headers = {
+                        'Content-Type': file.type || 'application/octet-stream',
+                        'Accept': 'application/json'
+                    };
+                    if (typeof window.ApiClient.setRequestHeaders === 'function') {
+                        window.ApiClient.setRequestHeaders(headers);
+                    } else {
+                        headers['X-Emby-Token'] = window.ApiClient.accessToken();
+                    }
+
+                    Dashboard.showLoadingMsg();
+                    return fetch(window.ApiClient.getUrl('CustomTabs/Images'), {
+                        method: 'POST',
+                        headers: headers,
+                        body: file,
+                        credentials: 'same-origin'
+                    }).then(function (response) {
+                        if (!response.ok) {
+                            return response.text().then(function (text) {
+                                throw new Error(text || ('HTTP ' + response.status));
+                            });
+                        }
+                        return response.json();
+                    }).then(function (result) {
+                        // Jellyfin serialises PascalCase; accept camelCase too
+                        return result.Url || result.url || null;
+                    }).catch(function (error) {
+                        console.error('CustomTabs: image upload failed', error);
+                        const detail = error && error.message ? error.message.replace(/^"|"$/g, '') : '';
+                        Dashboard.alert('The image could not be uploaded. ' + (detail || 'Use a PNG, JPEG, GIF, WebP, SVG or ICO file up to 2 MB.'));
+                        return null;
+                    }).finally(function () {
+                        Dashboard.hideLoadingMsg();
+                    });
                 },
                 removeTab: function(elem) {
                     elem.remove();
+                    CustomTabsConfig.renderOrderList();
                 }
             }
 

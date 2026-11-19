@@ -16,6 +16,22 @@ public class CustomTabsPlugin : BasePlugin<PluginConfiguration>, IHasPluginConfi
     public CustomTabsPlugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer) : base(applicationPaths, xmlSerializer)
     {
         Instance = this;
+        ConfigurationsPath = applicationPaths.PluginConfigurationsPath;
+    }
+
+    public string ConfigurationsPath { get; }
+
+    public override void UpdateConfiguration(BasePluginConfiguration configuration)
+    {
+        base.UpdateConfiguration(configuration);
+
+        if (configuration is PluginConfiguration config)
+        {
+            // Images can be used by custom tabs and by Jellyfin's own tabs
+            Helpers.TabImageStore.DeleteUnreferenced(
+                config.Tabs.Select(tab => tab.ImageUrl)
+                    .Concat(config.TabOverrides.Select(tabOverride => tabOverride.ImageUrl)));
+        }
     }
 
     public IEnumerable<PluginPageInfo> GetPages()
