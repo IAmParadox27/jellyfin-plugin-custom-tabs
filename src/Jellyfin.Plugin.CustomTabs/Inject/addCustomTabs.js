@@ -311,7 +311,19 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 + '.emby-button-foreground > .customTabIcon + .customTabLabel{margin-left:.4em;vertical-align:middle;}'
                 + '.customTabHeaderButton .customTabImage{height:24px;max-width:48px;display:block;}'
                 + '.customTabHeaderButton .customTabLabel{font-size:.875rem;white-space:nowrap;}'
-                + '.customTabHeaderButton[aria-current="page"]{background-color:rgba(255,255,255,.12);}';
+                + '.customTabHeaderButton[aria-current="page"]{background-color:rgba(255,255,255,.12);}'
+                // On narrow screens the header icons scroll sideways instead of
+                // running off the edge. The group is right-aligned with an auto
+                // margin rather than justify-content, so that when it overflows
+                // the first icons can still be scrolled to.
+                + '@media (max-width:1100px){'
+                + '.customTabsIconGroup{overflow-x:auto;overflow-y:hidden;min-width:0;flex-shrink:1;flex-wrap:nowrap;'
+                + 'justify-content:flex-start !important;scrollbar-width:none;-webkit-overflow-scrolling:touch;'
+                + 'overscroll-behavior-x:contain;padding-top:4px;padding-bottom:4px;}'
+                + '.customTabsIconGroup::-webkit-scrollbar{display:none;}'
+                + '.customTabsIconGroup>*{flex-shrink:0;}'
+                + '.customTabsIconGroup>:first-child{margin-left:auto;}'
+                + '}';
             document.head.appendChild(style);
         },
 
@@ -375,6 +387,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 console.log(`CustomTabs: Added ${id} to the header`);
             });
 
+            headerRight.classList.add('customTabsIconGroup');
             const items = Array.from(headerRight.children);
             this.recordHeaderIcons(items);
             this.arrangeHeaderIcons(headerRight, items);
@@ -694,6 +707,12 @@ if (typeof window.customTabsPlugin == 'undefined') {
             // as the template, normally Jellyfin's own icon group
             const templateItem = group.items.find((item) => item.contains(template));
             const container = templateItem.parentElement;
+            // Lets the icon row scroll on narrow screens (see ensureIconStyles).
+            // Never the toolbar itself, which would scroll the menu button too.
+            const toolbar = document.querySelector('header.MuiAppBar-root .MuiToolbar-root');
+            if (container !== toolbar && !container.matches('header') && !container.classList.contains('customTabsIconGroup')) {
+                container.classList.add('customTabsIconGroup');
+            }
 
             let added = false;
             wanted.forEach(({ config, i }) => {
