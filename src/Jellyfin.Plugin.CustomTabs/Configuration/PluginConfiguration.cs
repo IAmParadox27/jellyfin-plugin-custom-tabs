@@ -22,5 +22,9 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         // Show only the icon or image. Ignored when neither is set, so a tab
         // can never end up blank.
         public bool HideTitle { get; set; }
+
+        // "" (default) puts the tab in the tab bar on the left; "Right" puts
+        // it among the icon buttons on the right of the header instead.
+        public string Placement { get; set; } = string.Empty;
     }
 }

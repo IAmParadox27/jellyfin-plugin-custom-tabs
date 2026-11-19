@@ -48,6 +48,15 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 return;
             }
 
+            // The legacy header is shared by every page, so the right-hand
+            // buttons go in regardless of which page is showing.
+            this.loadConfigs().then((configs) => {
+                if (configs.length) {
+                    this.ensureIconStyles();
+                    this.ensureLegacyHeaderButtons(configs);
+                }
+            });
+
             this.waitForUI();
         },
 
@@ -78,7 +87,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
         // Drops every tab the plugin added, e.g. after the user logs out
         removeInjectedTabs: function() {
-            document.querySelectorAll('[id^="customTabButton_"], [id^="customTabDrawerButton_"]')
+            document.querySelectorAll('[id^="customTabButton_"], [id^="customTabDrawerButton_"], [id^="customTabHeaderButton_"]')
                 .forEach((element) => element.remove());
 
             document.querySelectorAll('[id^="customTab_"]')
@@ -187,6 +196,12 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     }
                     button.appendChild(title);
 
+                    // emby-tabs maps buttons to panels by position, so a tab
+                    // shown on the right still needs its (hidden) button here.
+                    if (this.isRightPlacement(config)) {
+                        button.style.display = 'none';
+                    }
+
                     tabsSlider.appendChild(button);
                     console.log(`CustomTabs: Added tab ${customTabId} to tabs slider`);
 
@@ -266,8 +281,162 @@ if (typeof window.customTabsPlugin == 'undefined') {
             style.id = 'customTabsIconStyles';
             style.textContent = '.customTabIcon{vertical-align:middle;}'
                 + '.customTabImage{height:1.5em;width:auto;max-width:6em;object-fit:contain;display:inline-block;}'
-                + '.emby-button-foreground > .customTabIcon + .customTabLabel{margin-left:.4em;vertical-align:middle;}';
+                + '.emby-button-foreground > .customTabIcon + .customTabLabel{margin-left:.4em;vertical-align:middle;}'
+                + '.customTabHeaderButton .customTabImage{height:24px;max-width:48px;display:block;}'
+                + '.customTabHeaderButton .customTabLabel{font-size:.875rem;white-space:nowrap;}'
+                + '.customTabHeaderButton[aria-current="page"]{background-color:rgba(255,255,255,.12);}';
             document.head.appendChild(style);
+        },
+
+        // --- Right-hand header buttons -----------------------------------------
+        // A tab with Placement "Right" gets a button among the header's icons
+        // (search, cast, user and so on) instead of a tab in the left bar.
+
+        isRightPlacement: function(config) {
+            return (config.Placement || '').toLowerCase() === 'right';
+        },
+
+        // Icon or image only; the title becomes the tooltip. With neither set,
+        // the title is shown as text so the button is never empty.
+        fillHeaderButton: function(button, config) {
+            const icon = this.buildTabIcon(config);
+            if (icon) {
+                button.appendChild(icon);
+            } else {
+                const label = document.createElement('span');
+                label.className = 'customTabLabel';
+                label.textContent = config.Title;
+                button.appendChild(label);
+            }
+
+            button.classList.add('customTabHeaderButton');
+            button.setAttribute('title', config.Title);
+            button.setAttribute('aria-label', config.Title);
+        },
+
+        openTab: function(index) {
+            // On the legacy home page, the tab bar handles switching panels
+            const legacyTab = document.getElementById(`customTabButton_${index}`);
+            if (legacyTab && legacyTab.classList.contains('emby-tab-button')) {
+                legacyTab.click();
+                return;
+            }
+
+            window.location.hash = `#/home?tab=${index + 2}`;
+        },
+
+        // Keeps our buttons together, directly in front of the first native
+        // button, in case React re-renders the group around them.
+        keepBefore: function(container, selector, anchor) {
+            const ours = Array.from(container.children).filter((el) => el.matches(selector));
+            if (!ours.length || !anchor || anchor.parentNode !== container) {
+                return;
+            }
+
+            const inPlace = ours.every((el, i) => {
+                const next = i + 1 < ours.length ? ours[i + 1] : anchor;
+                return el.nextElementSibling === next;
+            });
+
+            if (!inPlace) {
+                ours.forEach((el) => container.insertBefore(el, anchor));
+            }
+        },
+
+        ensureLegacyHeaderButtons: function(configs) {
+            const headerRight = document.querySelector('.skinHeader .headerRight');
+            if (!headerRight) {
+                return;
+            }
+
+            configs.forEach((config, i) => {
+                const id = `customTabHeaderButton_${i}`;
+                if (!this.isRightPlacement(config) || document.getElementById(id)) {
+                    return;
+                }
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.id = id;
+                button.setAttribute('is', 'paper-icon-button-light');
+                button.className = 'headerButton headerButtonRight paper-icon-button-light';
+                this.fillHeaderButton(button, config);
+                button.addEventListener('click', () => this.openTab(i));
+                headerRight.appendChild(button);
+                console.log(`CustomTabs: Added ${id} to the header`);
+            });
+
+            const anchor = Array.from(headerRight.children)
+                .find((el) => !el.matches('[id^="customTabHeaderButton_"]'));
+            this.keepBefore(headerRight, '[id^="customTabHeaderButton_"]', anchor);
+        },
+
+        // The native icon buttons on the right of the modern header, i.e. the
+        // MUI IconButtons that come after the tab links (or after the menu
+        // button when the links are collapsed into the drawer).
+        getModernHeaderIconButtons: function() {
+            if (document.body.classList.contains('dashboardDocument')) return [];
+            const toolbar = document.querySelector('header.MuiAppBar-root .MuiToolbar-root');
+            if (!toolbar) {
+                return [];
+            }
+
+            const bar = this.getModernBar();
+            let buttons = Array.from(toolbar.querySelectorAll('.MuiIconButton-root'))
+                .filter((el) => !el.id || el.id.indexOf('customTabHeaderButton_') !== 0);
+
+            if (bar) {
+                buttons = buttons.filter((el) => !bar.contains(el)
+                    && (bar.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING));
+            } else if (buttons.length > 1) {
+                buttons = buttons.slice(1);
+            }
+
+            return buttons;
+        },
+
+        ensureModernHeaderButtons: function() {
+            const wanted = this.configs
+                .map((config, i) => ({ config, i }))
+                .filter((entry) => this.isRightPlacement(entry.config));
+
+            if (!wanted.length) {
+                return;
+            }
+
+            const native = this.getModernHeaderIconButtons();
+            // Prefer a plain icon button over the avatar as the style source
+            const template = native.find((el) => el.querySelector('svg')) || native[0];
+            if (!template) {
+                return;
+            }
+
+            const container = template.parentNode;
+            wanted.forEach(({ config, i }) => {
+                const id = `customTabHeaderButton_${i}`;
+                if (document.getElementById(id)) {
+                    return;
+                }
+
+                const button = template.cloneNode(false);
+                button.id = id;
+                button.removeAttribute('aria-describedby');
+                button.removeAttribute('aria-haspopup');
+                button.removeAttribute('aria-controls');
+                button.removeAttribute('aria-expanded');
+                if (button.tagName === 'A') {
+                    button.setAttribute('href', `#/home?tab=${i + 2}`);
+                } else {
+                    button.addEventListener('click', () => this.openTab(i));
+                }
+                this.fillHeaderButton(button, config);
+                container.insertBefore(button, template);
+                console.log(`CustomTabs: Added ${id} to the modern header`);
+            });
+
+            const anchor = Array.from(container.children)
+                .find((el) => !el.matches('[id^="customTabHeaderButton_"]'));
+            this.keepBefore(container, '[id^="customTabHeaderButton_"]', anchor);
         },
 
         // --- Jellyfin 12 Modern layout ---------------------------------------
@@ -375,6 +544,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
             this.modernMutating = true;
             try {
                 this.ensureModernTabs();
+                this.ensureModernHeaderButtons();
                 this.renderModernContent();
             } finally {
                 this.modernMutating = false;
@@ -399,7 +569,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
             if (bar) {
                 this.configs.forEach((config, i) => {
                     const id = `customTabButton_${i}`;
-                    if (bar.querySelector(`[id="${id}"]`)) {
+                    if (this.isRightPlacement(config) || bar.querySelector(`[id="${id}"]`)) {
                         return;
                     }
 
@@ -584,7 +754,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
         },
 
         setModernSelected: function(index) {
-            document.querySelectorAll('[id^="customTabButton_"], [id^="customTabDrawerButton_"]').forEach((link) => {
+            document.querySelectorAll('[id^="customTabButton_"], [id^="customTabDrawerButton_"], [id^="customTabHeaderButton_"]').forEach((link) => {
                 const own = parseInt(link.id.replace(/\D+/g, ''), 10);
                 if (index !== null && own === index) {
                     link.setAttribute('aria-current', 'page');

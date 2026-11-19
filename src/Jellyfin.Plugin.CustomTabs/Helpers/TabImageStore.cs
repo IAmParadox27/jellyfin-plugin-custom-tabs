@@ -83,6 +83,23 @@ namespace Jellyfin.Plugin.CustomTabs.Helpers
                 && head.IndexOf("<svg", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        // A PNG cut short (e.g. by an incomplete download) still decodes, but
+        // only its top part shows. Its last chunk must be IEND.
+        public static bool IsCompletePng(byte[] data)
+        {
+            byte[] iend = { 0x49, 0x45, 0x4E, 0x44 };
+            int start = Math.Max(8, data.Length - 1024);
+            for (int i = data.Length - iend.Length; i >= start; i--)
+            {
+                if (data[i] == iend[0] && data[i + 1] == iend[1] && data[i + 2] == iend[2] && data[i + 3] == iend[3])
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public static string GetContentType(string fileName)
         {
             return Path.GetExtension(fileName) switch

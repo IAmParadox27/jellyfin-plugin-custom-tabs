@@ -63,6 +63,14 @@
                 </div>
                 <div class="fieldDescription">PNG, JPEG, GIF, WebP, SVG or ICO, up to 2 MB. The file is stored on the Jellyfin server. Click Save to keep it.</div>
             </div>
+            <div class="selectContainer">
+                <label class="selectLabel" for="templatePlacement">Placement</label>
+                <select is="emby-select" id="templatePlacement" data-id="selPlacement" class="emby-select-withcolor emby-select">
+                    <option value="">Tab bar (left)</option>
+                    <option value="Right">Header icons (right)</option>
+                </select>
+                <div class="fieldDescription">Header icons puts a button next to search and the user menu instead of a tab. Set an icon or image for it; without one the title is shown as text.</div>
+            </div>
             <div class="checkboxContainer checkboxContainer-withDescription">
                 <label>
                     <input type="checkbox" is="emby-checkbox" data-id="chkHideTitle" />
@@ -109,6 +117,7 @@
                             Icon: tabConfig.querySelector("[data-id=txtIcon]").value.trim(),
                             ImageUrl: tabConfig.querySelector("[data-id=txtImageUrl]").value.trim(),
                             HideTitle: tabConfig.querySelector("[data-id=chkHideTitle]").checked,
+                            Placement: tabConfig.querySelector("[data-id=selPlacement]").value,
                         };
                         
                         config.Tabs.push(tab);
@@ -200,6 +209,7 @@
                     template.querySelector('[data-id=txtIcon]').value = tabConfig.Icon || '';
                     template.querySelector('[data-id=txtImageUrl]').value = tabConfig.ImageUrl || '';
                     template.querySelector('[data-id=chkHideTitle]').checked = !!tabConfig.HideTitle;
+                    template.querySelector('[data-id=selPlacement]').value = tabConfig.Placement === 'Right' ? 'Right' : '';
 
                     const fieldset = template.querySelector('[data-id=tab-config]');
                     CustomTabsConfig.configurationWrapper.appendChild(template);

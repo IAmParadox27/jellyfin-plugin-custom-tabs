@@ -43,6 +43,11 @@ namespace Jellyfin.Plugin.CustomTabs.Controller
                 return BadRequest("Only PNG, JPEG, GIF, WebP, SVG and ICO images are supported.");
             }
 
+            if (extension == "png" && !TabImageStore.IsCompletePng(data))
+            {
+                return BadRequest("This PNG file is incomplete or damaged, so only part of it would show. Try exporting or downloading it again.");
+            }
+
             string fileName = TabImageStore.Save(data, extension);
             return Ok(new { Url = TabImageStore.UrlPrefix + fileName });
         }
