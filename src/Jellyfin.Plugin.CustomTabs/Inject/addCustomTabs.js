@@ -493,19 +493,28 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 return;
             }
 
-            // No saved order: leave every native icon where it is (other
-            // plugins' included) and keep ours just in front of the first
-            // native icon in the container
+            // Icons inside the tab bar never belong there: Jellyfin Enhanced
+            // puts its tray at the start of it, before the logo, because it
+            // takes the tab bar for the header's action area. Unless the saved
+            // order places them, they move in front of Jellyfin's icons.
+            const bar = this.getModernBar();
+            const misplaced = (item) => !!bar && bar.contains(item) && !this.ourHeaderButtonIn(item);
+
+            // No saved order: leave every other native icon where it is
+            // (other plugins' included) and keep ours, then any misplaced
+            // icons, just in front of the first native icon in the container
             if (!this.headerIconOrder || !this.headerIconOrder.length) {
-                const ours = items.filter((item) => this.ourHeaderButtonIn(item));
-                if (!ours.length) {
+                const moving = items.filter((item) => this.ourHeaderButtonIn(item))
+                    .concat(items.filter(misplaced));
+                if (!moving.length) {
                     return;
                 }
-                const anchor = items.find((item) => !this.ourHeaderButtonIn(item) && item.parentElement === container) || null;
-                const together = ours.every((el, i) => el.parentElement === container
-                    && el.nextElementSibling === (i + 1 < ours.length ? ours[i + 1] : anchor));
+                const anchor = items.find((item) => !this.ourHeaderButtonIn(item) && !misplaced(item)
+                    && item.parentElement === container) || null;
+                const together = moving.every((el, i) => el.parentElement === container
+                    && el.nextElementSibling === (i + 1 < moving.length ? moving[i + 1] : anchor));
                 if (!together) {
-                    ours.forEach((el) => container.insertBefore(el, anchor));
+                    moving.forEach((el) => container.insertBefore(el, anchor));
                 }
                 return;
             }
@@ -518,17 +527,20 @@ if (typeof window.customTabsPlugin == 'undefined') {
             const rank = new Map(this.headerIconOrder.map((key, i) => [String(key).toLowerCase(), i]));
             const ranked = [];
             const unrankedOurs = [];
+            const unrankedMisplaced = [];
             items.forEach((item, position) => {
                 const r = this.headerIconRank(item, rank);
                 if (r !== undefined) {
                     ranked.push({ item, r, position });
                 } else if (this.ourHeaderButtonIn(item)) {
                     unrankedOurs.push(item);
+                } else if (misplaced(item)) {
+                    unrankedMisplaced.push(item);
                 }
             });
 
             ranked.sort((a, b) => a.r - b.r || a.position - b.position);
-            const desired = unrankedOurs.concat(ranked.map((entry) => entry.item));
+            const desired = unrankedOurs.concat(unrankedMisplaced, ranked.map((entry) => entry.item));
             if (!desired.length) {
                 return;
             }
