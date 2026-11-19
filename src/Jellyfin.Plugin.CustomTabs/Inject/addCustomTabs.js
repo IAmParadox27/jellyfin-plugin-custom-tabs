@@ -1428,7 +1428,9 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 return;
             }
 
-            if (container.contains(userMenu)) {
+            // With a single icon its wrapper is the item, so the container is
+            // the toolbar itself; the user menu must stay inside it
+            if (container.contains(userMenu) && !container.matches('.MuiToolbar-root, header')) {
                 // Move the outermost wrapper inside the row that holds only it
                 let item = userMenu;
                 while (item.parentElement && item.parentElement !== container) {
@@ -1488,6 +1490,60 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 row.appendChild(top);
             }
             top.classList.add('customTabsPinnedRight');
+            this.mirrorHeaderInset(row, userMenu);
+        },
+
+        // Jellyfin pads the home header's sides by 3.3% of the window, but
+        // the menu button on the left can end up much nearer the edge than
+        // that (themes, other plugins), leaving the profile picture visibly
+        // further in on the right. The right padding is set so the profile
+        // picture is as far from the right edge as the menu icon is from the
+        // left. Without a menu button the header is left alone.
+        mirrorHeaderInset: function(row, userMenu) {
+            // Desktop only: phones and narrow windows (the scrolling icon row,
+            // see ensureIconStyles) keep Jellyfin's spacing
+            const narrow = window.innerWidth <= 1100
+                || document.documentElement.classList.contains('layout-mobile')
+                || document.body.classList.contains('layout-mobile');
+            const menuButton = narrow ? null : Array.from(row.children).find((el) => this.isHeaderMenuButton(el));
+            if (!menuButton || !menuButton.offsetWidth || !userMenu.offsetWidth) {
+                if (row.dataset.ctInset) {
+                    row.style.removeProperty('padding-right');
+                    delete row.dataset.ctInset;
+                }
+                return;
+            }
+
+            const glyph = menuButton.querySelector('svg, .material-icons') || menuButton;
+            const rowBox = row.getBoundingClientRect();
+            const userBox = userMenu.getBoundingClientRect();
+            // Only when the profile picture is on the menu button's line
+            if (Math.abs(userBox.top - menuButton.getBoundingClientRect().top) > menuButton.offsetHeight) {
+                return;
+            }
+
+            const leftGap = glyph.getBoundingClientRect().left - rowBox.left;
+            const rightGap = rowBox.right - userBox.right;
+            if (Math.abs(leftGap - rightGap) < 1) {
+                return;
+            }
+
+            const padding = parseFloat(getComputedStyle(row).paddingRight) || 0;
+            const wanted = Math.max(0, Math.round(padding + leftGap - rightGap));
+            row.style.setProperty('padding-right', wanted + 'px', 'important');
+            row.dataset.ctInset = String(wanted);
+
+            if (!this.insetResizeWatched) {
+                this.insetResizeWatched = true;
+                window.addEventListener('resize', () => {
+                    // Start again from Jellyfin's own padding at the new width
+                    document.querySelectorAll('[data-ct-inset]').forEach((el) => {
+                        el.style.removeProperty('padding-right');
+                        delete el.dataset.ctInset;
+                    });
+                    this.scheduleModernSync();
+                });
+            }
         },
 
         // An icon button rather than a tab link: tab links (and the logo) are
