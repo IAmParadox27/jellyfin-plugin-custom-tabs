@@ -79,6 +79,10 @@ The likelihood is the plugin hasn't been updated for that version of Jellyfin an
 
 Each tab's settings are grouped into **Text**, **Placement**, **Icon** and **Content** sections. The **Enabled** switch at the top of each tab turns it off without deleting its settings. Saved tabs start collapsed; click a tab's title to show or hide its settings, or use **Expand all** and **Collapse all**.
 
+### Tab order
+
+The **Tab order** list at the top of the settings page numbers every tab in the header, Jellyfin's own (Home, Favorites and your libraries) and custom tabs together. Change a number or use the arrows to reorder, then save. This applies to the newer header layout, where libraries appear as tabs. In the classic layout the tab bar matches tabs to panels by position, so custom tabs always come after Home and Favorites there. Jellyfin's tabs are matched by their label, so if you rename a library, check its place in the list.
+
 Each tab can show an icon or an image alongside, or instead of, its text:
 
 - **Icon**: a [Material icon](https://fonts.google.com/icons?icon.set=Material+Icons) name, such as `movie`, `live_tv` or `request_page`. Jellyfin already ships this icon font.

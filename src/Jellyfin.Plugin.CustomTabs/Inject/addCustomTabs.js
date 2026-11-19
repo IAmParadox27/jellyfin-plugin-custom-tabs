@@ -9,6 +9,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
         tabConfigs: {},
         configs: null,
         configPromise: null,
+        tabOrder: [],
         modernObserver: null,
         modernPending: false,
         modernMutating: false,
@@ -75,6 +76,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 }
             }).then((configs) => {
                 this.configs = configs || [];
+                return this.loadTabOrder();
+            }).then(() => {
                 return this.configs;
             }).catch((error) => {
                 console.error('CustomTabs: Error fetching tab configs:', error);
@@ -83,6 +86,22 @@ if (typeof window.customTabsPlugin == 'undefined') {
             });
 
             return this.configPromise;
+        },
+
+        // The header order set on the settings page; missing on older servers
+        loadTabOrder: function() {
+            return ApiClient.fetch({
+                url: ApiClient.getUrl('CustomTabs/Order'),
+                type: 'GET',
+                dataType: 'json',
+                headers: {
+                    accept: 'application/json'
+                }
+            }).then((order) => {
+                this.tabOrder = Array.isArray(order) ? order : [];
+            }).catch(() => {
+                this.tabOrder = [];
+            });
         },
 
         // Drops every tab the plugin added, e.g. after the user logs out
@@ -584,7 +603,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     console.log(`CustomTabs: Added ${id} to the modern header`);
                 });
 
-                this.keepLast(bar, '[id^="customTabButton_"]');
+                this.arrangeTabs(bar, '[id^="customTabButton_"]');
             }
 
             const list = this.getModernDrawerList();
@@ -617,8 +636,70 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     console.log(`CustomTabs: Added ${id} to the modern drawer`);
                 });
 
-                this.keepLast(list, '[id^="customTabDrawerButton_"]');
+                this.arrangeTabs(list, '[id^="customTabDrawerButton_"]');
             }
+        },
+
+        normaliseLabel: function(text) {
+            return (text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        },
+
+        // "custom:<id>" for our tabs, "stock:<label>" for Jellyfin's own
+        tabKey: function(el, selector) {
+            const ours = el.matches(selector) ? el : el.querySelector(selector);
+            if (ours) {
+                const config = this.configs && this.configs[parseInt(ours.id.replace(/\D+/g, ''), 10)];
+                return config && config.Id ? `custom:${config.Id}`.toLowerCase() : null;
+            }
+
+            return `stock:${this.normaliseLabel(el.textContent)}`;
+        },
+
+        // Orders built-in and custom tabs together by the numbered list on
+        // the settings page. Tabs it does not mention (e.g. a library added
+        // since) keep their place after the listed ones. React does not
+        // re-sort nodes that only moved, and the observer re-applies this
+        // after any re-render.
+        arrangeTabs: function(container, selector) {
+            const isOurs = (el) => el.matches(selector) || !!el.querySelector(selector);
+            const children = Array.from(container.children);
+            if (!children.some(isOurs)) {
+                return;
+            }
+
+            if (!this.tabOrder || !this.tabOrder.length) {
+                this.keepLast(container, selector);
+                return;
+            }
+
+            const rank = new Map(this.tabOrder.map((key, i) => [String(key).toLowerCase(), i]));
+            const ranked = [];
+            const unrankedNative = [];
+            const unrankedOurs = [];
+            children.forEach((el, position) => {
+                const key = this.tabKey(el, selector);
+                const r = key ? rank.get(key) : undefined;
+                if (r !== undefined) {
+                    ranked.push({ el, r, position });
+                } else if (isOurs(el)) {
+                    unrankedOurs.push(el);
+                } else {
+                    unrankedNative.push(el);
+                }
+            });
+
+            ranked.sort((a, b) => a.r - b.r || a.position - b.position);
+            const desired = ranked.map((entry) => entry.el).concat(unrankedNative, unrankedOurs);
+            if (desired.every((el, i) => children[i] === el)) {
+                return;
+            }
+
+            desired.forEach((el, i) => {
+                const current = container.children[i];
+                if (current !== el) {
+                    container.insertBefore(el, current);
+                }
+            });
         },
 
         // React reconciles its own children back in around anything we append,

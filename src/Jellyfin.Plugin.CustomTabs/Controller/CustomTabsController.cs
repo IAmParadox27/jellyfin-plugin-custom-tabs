@@ -17,6 +17,13 @@ namespace Jellyfin.Plugin.CustomTabs.Controller
             return Ok(CustomTabsPlugin.Instance.Configuration.GetEnabledTabs());
         }
 
+        [Authorize]
+        [HttpGet("Order")]
+        public ActionResult<string[]> GetTabOrder()
+        {
+            return Ok(CustomTabsPlugin.Instance.Configuration.TabOrder);
+        }
+
         // Admin only: the raw image bytes are the request body.
         [Authorize(Policy = "RequiresElevation")]
         [HttpPost("Images")]

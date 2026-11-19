@@ -19,6 +19,12 @@
         <hr class="solid">
 
         <form class="customTabsConfigurationForm">
+            <div class="customTabOrderSection">
+                <h2 class="sectionTitle">Tab order</h2>
+                <div class="fieldDescription">Number the tabs in the order they should appear in the header, Jellyfin's own tabs included. Change a number or use the arrows. Applies to the newer header layout, where libraries appear as tabs; in the classic layout custom tabs always come after Home and Favorites. Tabs shown as header icons on the right are not listed.</div>
+                <ol id="tabOrderList" class="customTabOrderList"></ol>
+            </div>
+            <h2 class="sectionTitle">Tabs</h2>
             <div class="customTabListActions">
                 <button id="btnExpandAll" is="emby-button" type="button" class="emby-button raised"><span>Expand all</span></button>
                 <button id="btnCollapseAll" is="emby-button" type="button" class="emby-button raised"><span>Collapse all</span></button>
@@ -45,6 +51,17 @@
         #customTabsConfigurationPage .customTabCollapsed .customTabChevron { transform: rotate(-45deg); margin-bottom: 0; }
         #customTabsConfigurationPage .customTabCollapsed .customTabBody { display: none; }
         #customTabsConfigurationPage .customTabCard.customTabCollapsed { padding-bottom: 1em; }
+        #customTabsConfigurationPage .customTabOrderSection { margin-bottom: 2em; }
+        #customTabsConfigurationPage .customTabOrderList { list-style: none; margin: .8em 0 0; padding: 0; border: 1px solid rgba(255,255,255,.15); border-radius: .5em; }
+        #customTabsConfigurationPage .customTabOrderRow { display: flex; align-items: center; gap: .8em; padding: .45em .8em; }
+        #customTabsConfigurationPage .customTabOrderRow + .customTabOrderRow { border-top: 1px solid rgba(255,255,255,.08); }
+        #customTabsConfigurationPage .customTabOrderNumber { width: 3.5em; padding: .35em .4em; text-align: center; background: rgba(255,255,255,.08); color: inherit; border: 1px solid rgba(255,255,255,.2); border-radius: .3em; font: inherit; }
+        #customTabsConfigurationPage .customTabOrderName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #customTabsConfigurationPage .customTabOrderKind { font-size: .8em; padding: .1em .6em; border-radius: 1em; background: rgba(255,255,255,.1); white-space: nowrap; }
+        #customTabsConfigurationPage .customTabOrderRow.isCustom .customTabOrderKind { background: rgba(0,164,220,.3); }
+        #customTabsConfigurationPage .customTabOrderRow.isDisabled .customTabOrderName { opacity: .5; }
+        #customTabsConfigurationPage .customTabOrderMove { background: none; border: 1px solid rgba(255,255,255,.2); color: inherit; border-radius: .3em; width: 2em; height: 2em; cursor: pointer; font: inherit; line-height: 1; }
+        #customTabsConfigurationPage .customTabOrderMove:disabled { opacity: .3; cursor: default; }
         #customTabsConfigurationPage .customTabListActions { display: flex; justify-content: flex-end; gap: 1em; margin-bottom: 1em; }
         #customTabsConfigurationPage .customTabCardHeader .checkboxContainer { margin: 0; }
         #customTabsConfigurationPage .customTabSection { margin-top: 1.5em; }
@@ -166,12 +183,14 @@
                     e.preventDefault();
                     Dashboard.showLoadingMsg();
                     const config = {
-                        Tabs: []
+                        Tabs: [],
+                        TabOrder: CustomTabsConfig.order.slice()
                     };
                     
                     // loop over tab configs
                     document.querySelectorAll("[data-id=tab-config]").forEach(tabConfig => {
                         const tab = {
+                            Id: tabConfig.dataset.tabId,
                             Title: tabConfig.querySelector("[data-id=txtDisplayText]").value,
                             ContentHtml: tabConfig.querySelector("[data-id=templateHtmlContent]").value,
                             Icon: tabConfig.querySelector("[data-id=txtIcon]").value.trim(),
@@ -195,8 +214,14 @@
                 },
                 loadConfig: function () {
                     Dashboard.showLoadingMsg();
-                    window.ApiClient.getPluginConfiguration(CustomTabsConfig.pluginId)
-                        .then(function (config) {
+                    Promise.all([
+                        window.ApiClient.getPluginConfiguration(CustomTabsConfig.pluginId),
+                        CustomTabsConfig.loadLibraryNames()
+                    ])
+                        .then(function (results) {
+                            const config = results[0];
+                            CustomTabsConfig.stockNames = ['Home', 'Favorites'].concat(results[1]);
+                            CustomTabsConfig.order = (config.TabOrder || []).slice();
                             for (var i = 0; i < config.Tabs.length; ++i) {
                                 CustomTabsConfig.addCustomTabConfig(config.Tabs[i]);
                             }
@@ -242,7 +267,7 @@
                         }
                     });
                     CustomTabsConfig.configurationWrapper.addEventListener("change", (event) => {
-                        if (event.target.getAttribute('data-id') === "chkEnabled") {
+                        if (event.target.getAttribute('data-id') === "chkEnabled" || event.target.getAttribute('data-id') === "selPlacement") {
                             CustomTabsConfig.updateCardState(event.target.closest("[data-id=tab-config]"));
                             return;
                         }
@@ -268,7 +293,147 @@
                             CustomTabsConfig.updateCardState(fieldset);
                         }
                     });
+                    document.querySelector("#tabOrderList").addEventListener("change", (event) => {
+                        if (event.target.classList.contains('customTabOrderNumber')) {
+                            const row = event.target.closest('[data-key]');
+                            CustomTabsConfig.moveInOrder(row.getAttribute('data-key'), parseInt(event.target.value, 10) - 1);
+                        }
+                    });
+                    document.querySelector("#tabOrderList").addEventListener("click", (event) => {
+                        const button = event.target.closest('.customTabOrderMove');
+                        if (button) {
+                            const row = button.closest('[data-key]');
+                            const index = CustomTabsConfig.order.indexOf(row.getAttribute('data-key'));
+                            CustomTabsConfig.moveInOrder(row.getAttribute('data-key'), index + parseInt(button.getAttribute('data-step'), 10));
+                        }
+                    });
                     CustomTabsConfig.loadConfig();
+                },
+                // --- Tab order -------------------------------------------
+                // Keys: "stock:<label>" for Jellyfin's tabs, matched on their
+                // label in the header, and "custom:<id>" for custom tabs.
+                order: [],
+                stockNames: ['Home', 'Favorites'],
+                newId: function () {
+                    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                        return window.crypto.randomUUID().replace(/-/g, '');
+                    }
+                    let id = '';
+                    for (let i = 0; i < 32; i++) {
+                        id += Math.floor(Math.random() * 16).toString(16);
+                    }
+                    return id;
+                },
+                loadLibraryNames: function () {
+                    const apiClient = window.ApiClient;
+                    if (typeof apiClient.getUserViews !== 'function') {
+                        return Promise.resolve([]);
+                    }
+
+                    return Promise.resolve(apiClient.getUserViews({}, apiClient.getCurrentUserId()))
+                        .then(function (result) {
+                            return ((result && result.Items) || []).map(function (item) { return item.Name; }).filter(Boolean);
+                        })
+                        .catch(function (error) {
+                            console.warn('CustomTabs: could not load libraries for the tab order', error);
+                            return [];
+                        });
+                },
+                // Everything that can be ordered right now: Jellyfin's tabs,
+                // then custom tabs in the tab bar, in their default order
+                orderEntries: function () {
+                    const entries = CustomTabsConfig.stockNames.map(function (name) {
+                        return { key: 'stock:' + name.trim().toLowerCase(), name: name, custom: false, disabled: false };
+                    });
+                    document.querySelectorAll("[data-id=tab-config]").forEach(function (card) {
+                        if (card.querySelector('[data-id=selPlacement]').value === 'Right') {
+                            return;
+                        }
+                        entries.push({
+                            key: 'custom:' + card.dataset.tabId,
+                            name: card.querySelector('[data-id=txtDisplayText]').value.trim() || 'Untitled tab',
+                            custom: true,
+                            disabled: !card.querySelector('[data-id=chkEnabled]').checked
+                        });
+                    });
+                    return entries;
+                },
+                // Keeps the saved order for entries that still exist and puts
+                // anything new at the end, then redraws the numbered list
+                renderOrderList: function () {
+                    const entries = CustomTabsConfig.orderEntries();
+                    const byKey = {};
+                    entries.forEach(function (entry) { byKey[entry.key] = entry; });
+
+                    const ordered = CustomTabsConfig.order.filter(function (key) { return byKey[key]; });
+                    entries.forEach(function (entry) {
+                        if (ordered.indexOf(entry.key) === -1) {
+                            ordered.push(entry.key);
+                        }
+                    });
+                    CustomTabsConfig.order = ordered;
+
+                    const list = document.querySelector('#tabOrderList');
+                    list.innerHTML = '';
+                    ordered.forEach(function (key, i) {
+                        const entry = byKey[key];
+                        const row = document.createElement('li');
+                        row.className = 'customTabOrderRow' + (entry.custom ? ' isCustom' : '') + (entry.disabled ? ' isDisabled' : '');
+                        row.setAttribute('data-key', key);
+
+                        const number = document.createElement('input');
+                        number.type = 'number';
+                        number.min = '1';
+                        number.max = String(ordered.length);
+                        number.value = String(i + 1);
+                        number.className = 'customTabOrderNumber';
+                        number.setAttribute('aria-label', 'Position of ' + entry.name);
+
+                        const name = document.createElement('span');
+                        name.className = 'customTabOrderName';
+                        name.textContent = entry.name + (entry.disabled ? ' (disabled)' : '');
+
+                        const kind = document.createElement('span');
+                        kind.className = 'customTabOrderKind';
+                        kind.textContent = entry.custom ? 'Custom' : 'Jellyfin';
+
+                        const up = document.createElement('button');
+                        up.type = 'button';
+                        up.className = 'customTabOrderMove';
+                        up.setAttribute('data-step', '-1');
+                        up.setAttribute('aria-label', 'Move ' + entry.name + ' up');
+                        up.textContent = '\u2191';
+                        up.disabled = i === 0;
+
+                        const down = document.createElement('button');
+                        down.type = 'button';
+                        down.className = 'customTabOrderMove';
+                        down.setAttribute('data-step', '1');
+                        down.setAttribute('aria-label', 'Move ' + entry.name + ' down');
+                        down.textContent = '\u2193';
+                        down.disabled = i === ordered.length - 1;
+
+                        row.append(number, name, kind, up, down);
+                        list.appendChild(row);
+                    });
+                },
+                moveInOrder: function (key, newIndex) {
+                    const order = CustomTabsConfig.order;
+                    const from = order.indexOf(key);
+                    if (from === -1 || isNaN(newIndex)) {
+                        CustomTabsConfig.renderOrderList();
+                        return;
+                    }
+
+                    const to = Math.max(0, Math.min(order.length - 1, newIndex));
+                    order.splice(from, 1);
+                    order.splice(to, 0, key);
+                    CustomTabsConfig.renderOrderList();
+
+                    const input = document.querySelector('#tabOrderList [data-key="' + key + '"] .customTabOrderNumber');
+                    if (input) {
+                        input.focus();
+                    }
                 },
                 addCustomTabNew: function() {
                     const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
@@ -277,6 +442,7 @@
                     template.querySelector('[data-id=templateHtmlContent]').value = '';
 
                     const fieldset = template.querySelector('[data-id=tab-config]');
+                    fieldset.dataset.tabId = CustomTabsConfig.newId();
                     CustomTabsConfig.configurationWrapper.appendChild(template);
                     CustomTabsConfig.updatePreview(fieldset);
                     CustomTabsConfig.updateCardState(fieldset);
@@ -297,6 +463,8 @@
                     template.querySelector('[data-id=chkEnabled]').checked = tabConfig.Enabled !== false;
 
                     const fieldset = template.querySelector('[data-id=tab-config]');
+                    // Tabs saved before ordering existed get an id here, kept on Save
+                    fieldset.dataset.tabId = (tabConfig.Id || CustomTabsConfig.newId()).toLowerCase();
                     CustomTabsConfig.configurationWrapper.appendChild(template);
                     CustomTabsConfig.updatePreview(fieldset);
                     CustomTabsConfig.updateCardState(fieldset);
@@ -320,6 +488,7 @@
                     const title = fieldset.querySelector('[data-id=txtDisplayText]').value.trim();
                     fieldset.querySelector('[data-id=tabHeading]').textContent = title || 'Untitled tab';
                     fieldset.classList.toggle('customTabDisabled', !fieldset.querySelector('[data-id=chkEnabled]').checked);
+                    CustomTabsConfig.renderOrderList();
                 },
                 updatePreview: function(fieldset) {
                     const url = fieldset.querySelector('[data-id=txtImageUrl]').value.trim();
@@ -378,6 +547,7 @@
                 },
                 removeTab: function(elem) {
                     elem.remove();
+                    CustomTabsConfig.renderOrderList();
                 }
             }
 

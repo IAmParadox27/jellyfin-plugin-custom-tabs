@@ -9,6 +9,12 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         // Disabled tabs keep their settings but are left out of the web
         // client entirely, so the remaining tabs keep contiguous indexes.
         public TabConfig[] GetEnabledTabs() => Tabs.Where(tab => tab.Enabled).ToArray();
+
+        // Order of the header tabs, built-in and custom together. Entries are
+        // "stock:<label>" for a Jellyfin tab (e.g. "stock:movies", matched on
+        // its label) and "custom:<Id>" for a custom tab. Empty keeps the
+        // default: custom tabs after the built-in ones.
+        public string[] TabOrder { get; set; } = Array.Empty<string>();
     }
 
     public class TabConfig
@@ -16,6 +22,9 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         public string ContentHtml { get; set; } = string.Empty;
 
         public string Title { get; set; } = string.Empty;
+
+        // Stable id used by TabOrder; assigned by the settings page.
+        public string Id { get; set; } = string.Empty;
 
         // Defaults to true so tabs saved before this setting existed stay on.
         public bool Enabled { get; set; } = true;
