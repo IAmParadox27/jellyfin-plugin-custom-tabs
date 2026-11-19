@@ -26,7 +26,7 @@
             </div>
             <div class="customTabOrderSection">
                 <h2 class="sectionTitle">Header icon order</h2>
-                <div class="fieldDescription">Number the icon buttons on the right of the header, Jellyfin's own (and other plugins') together with tabs set to Header icons (right). Jellyfin's icons are listed once you have opened the Jellyfin home page in this browser with this version of the plugin installed. Icons without a name, such as some user avatars, always stay at the end.</div>
+                <div class="fieldDescription">Number the icon buttons on the right of the header, Jellyfin's own (and other plugins') together with tabs set to Header icons (right). Jellyfin's icons are listed once you have opened the Jellyfin home page in this browser with this version of the plugin installed. The user menu (profile picture) is pinned to the right end, like the menu button on the left, and can't be moved.</div>
                 <ol id="headerIconOrderList" class="customTabOrderList" data-list="icons"></ol>
                 <div class="fieldDescription" data-id="headerIconsHint" style="display:none;">No Jellyfin icons found yet. Open the Jellyfin home page in this browser, then come back to this page.</div>
             </div>
@@ -68,6 +68,10 @@
         #customTabsConfigurationPage .customTabOrderRow.isDisabled .customTabOrderName { opacity: .5; }
         #customTabsConfigurationPage .customTabOrderMove { background: none; border: 1px solid rgba(255,255,255,.2); color: inherit; border-radius: .3em; width: 2em; height: 2em; cursor: pointer; font: inherit; line-height: 1; }
         #customTabsConfigurationPage .customTabOrderMove:disabled { opacity: .3; cursor: default; }
+        #customTabsConfigurationPage .customTabOrderRow.isPinned { background: rgba(255,255,255,.04); }
+        #customTabsConfigurationPage .customTabOrderRow.isPinned .customTabOrderNumber { opacity: .6; }
+        #customTabsConfigurationPage .customTabOrderRow.isPinned .customTabOrderKind { background: rgba(255,255,255,.18); }
+        #customTabsConfigurationPage .customTabOrderPinnedNote { opacity: .65; font-size: .9em; }
         #customTabsConfigurationPage .customTabListActions { display: flex; justify-content: flex-end; gap: 1em; margin-bottom: 1em; }
         #customTabsConfigurationPage .customTabCardHeader .checkboxContainer { margin: 0; }
         #customTabsConfigurationPage .customTabSection { margin-top: 1.5em; }
@@ -393,7 +397,11 @@
                 },
                 // Default order: custom header buttons, then Jellyfin's icons
                 headerIconEntries: function () {
-                    const stock = CustomTabsConfig.seenHeaderIcons().map(CustomTabsConfig.stockEntry);
+                    // The user menu is pinned (see pinnedRow), so a label recorded
+                    // for it by an earlier version isn't offered as movable
+                    const stock = CustomTabsConfig.seenHeaderIcons()
+                        .filter(function (label) { return !/^(user menu|account|my account|profile|user profile)$/i.test(label.trim()); })
+                        .map(CustomTabsConfig.stockEntry);
                     document.querySelector('[data-id=headerIconsHint]').style.display = stock.length ? 'none' : '';
                     return CustomTabsConfig.customEntries(true).concat(stock);
                 },
@@ -485,6 +493,52 @@
                         row.append(number, name, kind, up, down);
                         list.appendChild(row);
                     });
+
+                    // The user menu can't be moved (it is always kept at the
+                    // right end of the header), so it is shown as a fixed last
+                    // row for reference and isn't part of the saved order
+                    if (listName === 'icons') {
+                        list.appendChild(CustomTabsConfig.pinnedRow(ordered.length + 1, 'User menu (profile picture)',
+                            'Always stays at the right end of the header'));
+                    }
+                },
+                pinnedRow: function (position, title, note) {
+                    const row = document.createElement('li');
+                    row.className = 'customTabOrderRow isPinned';
+                    row.title = note;
+
+                    const number = document.createElement('input');
+                    number.type = 'number';
+                    number.value = String(position);
+                    number.disabled = true;
+                    number.className = 'customTabOrderNumber';
+                    number.setAttribute('aria-label', title + ' is fixed at position ' + position);
+
+                    const name = document.createElement('span');
+                    name.className = 'customTabOrderName';
+                    name.textContent = title;
+                    const hint = document.createElement('span');
+                    hint.className = 'customTabOrderPinnedNote';
+                    hint.textContent = ' \u2013 ' + note;
+                    name.appendChild(hint);
+
+                    const kind = document.createElement('span');
+                    kind.className = 'customTabOrderKind';
+                    kind.textContent = '\uD83D\uDD12 Pinned';
+
+                    const up = document.createElement('button');
+                    up.type = 'button';
+                    up.className = 'customTabOrderMove';
+                    up.textContent = '\u2191';
+                    up.disabled = true;
+                    up.setAttribute('aria-hidden', 'true');
+                    up.tabIndex = -1;
+
+                    const down = up.cloneNode(true);
+                    down.textContent = '\u2193';
+
+                    row.append(number, name, kind, up, down);
+                    return row;
                 },
                 moveInOrder: function (listName, key, newIndex) {
                     const state = CustomTabsConfig.orderLists[listName];
