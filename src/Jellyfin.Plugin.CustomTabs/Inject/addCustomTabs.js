@@ -209,7 +209,11 @@ if (typeof window.customTabsPlugin == 'undefined') {
             const imageUrl = (config.ImageUrl || '').trim();
             if (imageUrl) {
                 const img = document.createElement('img');
-                img.src = imageUrl;
+                // Uploaded images are stored as a server path, which has to go
+                // through getUrl so it works when Jellyfin has a base URL.
+                img.src = imageUrl.indexOf('CustomTabs/Images/') === 0 && typeof ApiClient !== 'undefined'
+                    ? ApiClient.getUrl(imageUrl)
+                    : imageUrl;
                 img.alt = '';
                 img.className = 'customTabIcon customTabImage';
                 img.setAttribute('aria-hidden', 'true');

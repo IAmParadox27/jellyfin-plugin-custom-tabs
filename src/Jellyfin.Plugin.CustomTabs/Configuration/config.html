@@ -48,7 +48,20 @@
             <div class="inputContainer">
                 <label class="inputLabel inputLabelUnfocused" for="templateImageUrl">Image URL (optional)</label>
                 <input id="templateImageUrl" data-id="txtImageUrl" type="text" is="emby-input" class="emby-input" placeholder="https://example.com/logo.png">
-                <div class="fieldDescription">An image to show on the tab instead of an icon. Takes priority over the icon when both are set.</div>
+                <div class="fieldDescription">An image to show on the tab instead of an icon, either a web address or a file uploaded below. Takes priority over the icon when both are set.</div>
+            </div>
+            <div class="inputContainer">
+                <input type="file" data-id="fileImageUpload" accept="image/png,image/jpeg,image/gif,image/webp,image/x-icon" style="display:none;" />
+                <div style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">
+                    <button data-id="btnUploadImage" is="emby-button" type="button" class="emby-button raised">
+                        <span>Upload image...</span>
+                    </button>
+                    <button data-id="btnClearImage" is="emby-button" type="button" class="emby-button raised">
+                        <span>Clear image</span>
+                    </button>
+                    <img data-id="imgPreview" alt="" style="display:none;height:2.5em;max-width:10em;object-fit:contain;" />
+                </div>
+                <div class="fieldDescription">PNG, JPEG, GIF, WebP or ICO, up to 2 MB. The file is stored on the Jellyfin server. Click Save to keep it.</div>
             </div>
             <div class="checkboxContainer checkboxContainer-withDescription">
                 <label>
@@ -129,9 +142,42 @@
                     CustomTabsConfig.btnAddCustomTab.addEventListener("click", CustomTabsConfig.addCustomTabNew);
                     CustomTabsConfig.btnSave.addEventListener("click", CustomTabsConfig.saveConfig);
                     CustomTabsConfig.configurationWrapper.addEventListener("click", (event) => {
-                        if (event.target.getAttribute('data-id') === "templateRemoveTab") {
-                            const el = event.target.closest("[data-id=tab-config]");
-                            CustomTabsConfig.removeTab(el);
+                        // Clicks often land on the <span> inside a button
+                        const control = event.target.closest("[data-id]");
+                        const fieldset = event.target.closest("[data-id=tab-config]");
+                        if (!control || !fieldset) {
+                            return;
+                        }
+
+                        switch (control.getAttribute('data-id')) {
+                            case "templateRemoveTab":
+                                CustomTabsConfig.removeTab(fieldset);
+                                break;
+                            case "btnUploadImage":
+                                fieldset.querySelector("[data-id=fileImageUpload]").click();
+                                break;
+                            case "btnClearImage":
+                                fieldset.querySelector("[data-id=txtImageUrl]").value = '';
+                                CustomTabsConfig.updatePreview(fieldset);
+                                break;
+                        }
+                    });
+                    CustomTabsConfig.configurationWrapper.addEventListener("change", (event) => {
+                        if (event.target.getAttribute('data-id') !== "fileImageUpload") {
+                            return;
+                        }
+
+                        const input = event.target;
+                        const file = input.files && input.files[0];
+                        if (file) {
+                            CustomTabsConfig.uploadImage(input.closest("[data-id=tab-config]"), file);
+                        }
+                        // Allow choosing the same file again
+                        input.value = '';
+                    });
+                    CustomTabsConfig.configurationWrapper.addEventListener("input", (event) => {
+                        if (event.target.getAttribute('data-id') === "txtImageUrl") {
+                            CustomTabsConfig.updatePreview(event.target.closest("[data-id=tab-config]"));
                         }
                     });
                     CustomTabsConfig.loadConfig();
@@ -142,7 +188,9 @@
                     template.querySelector('[data-id=txtDisplayText]').value = 'New Tab';
                     template.querySelector('[data-id=templateHtmlContent]').value = '';
 
-                    const el = CustomTabsConfig.configurationWrapper.appendChild(template);
+                    const fieldset = template.querySelector('[data-id=tab-config]');
+                    CustomTabsConfig.configurationWrapper.appendChild(template);
+                    CustomTabsConfig.updatePreview(fieldset);
                 },
                 addCustomTabConfig: function(tabConfig) {
                     const template = CustomTabsConfig.templateCustomTab.cloneNode(true).content;
@@ -153,7 +201,48 @@
                     template.querySelector('[data-id=txtImageUrl]').value = tabConfig.ImageUrl || '';
                     template.querySelector('[data-id=chkHideTitle]').checked = !!tabConfig.HideTitle;
 
-                    const el = CustomTabsConfig.configurationWrapper.appendChild(template);
+                    const fieldset = template.querySelector('[data-id=tab-config]');
+                    CustomTabsConfig.configurationWrapper.appendChild(template);
+                    CustomTabsConfig.updatePreview(fieldset);
+                },
+                // Uploaded images are stored as a server path; route it
+                // through getUrl so it works when Jellyfin has a base URL.
+                resolveImageUrl: function(url) {
+                    return url.indexOf('CustomTabs/Images/') === 0 ? window.ApiClient.getUrl(url) : url;
+                },
+                updatePreview: function(fieldset) {
+                    const url = fieldset.querySelector('[data-id=txtImageUrl]').value.trim();
+                    const preview = fieldset.querySelector('[data-id=imgPreview]');
+                    if (url) {
+                        preview.src = CustomTabsConfig.resolveImageUrl(url);
+                        preview.style.display = '';
+                    } else {
+                        preview.removeAttribute('src');
+                        preview.style.display = 'none';
+                    }
+                },
+                uploadImage: function(fieldset, file) {
+                    if (file.size > 2 * 1024 * 1024) {
+                        Dashboard.alert('Images must be 2 MB or smaller.');
+                        return;
+                    }
+
+                    Dashboard.showLoadingMsg();
+                    window.ApiClient.ajax({
+                        type: 'POST',
+                        url: window.ApiClient.getUrl('CustomTabs/Images'),
+                        data: file,
+                        contentType: file.type || 'application/octet-stream',
+                        dataType: 'json'
+                    }).then(function (result) {
+                        fieldset.querySelector('[data-id=txtImageUrl]').value = result.Url;
+                        CustomTabsConfig.updatePreview(fieldset);
+                    }).catch(function (error) {
+                        console.error(error);
+                        Dashboard.alert('The image could not be uploaded. Use a PNG, JPEG, GIF, WebP or ICO file up to 2 MB.');
+                    }).finally(function () {
+                        Dashboard.hideLoadingMsg();
+                    });
                 },
                 removeTab: function(elem) {
                     elem.remove();

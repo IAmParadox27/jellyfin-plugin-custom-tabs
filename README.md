@@ -81,6 +81,7 @@ Each tab can show an icon or an image alongside, or instead of, its text:
 
 - **Icon**: a [Material icon](https://fonts.google.com/icons?icon.set=Material+Icons) name, such as `movie`, `live_tv` or `request_page`. Jellyfin already ships this icon font.
 - **Image URL**: any image URL, such as a service's logo. If both are set, the image is used.
+- **Upload image**: pick an image file from your computer instead of typing a URL. PNG, JPEG, GIF, WebP and ICO files up to 2 MB are supported. The file is stored on the Jellyfin server in the plugin configurations folder, so it survives plugin updates, and it is deleted once no tab uses it and the settings are saved. Uploaded images are served without login so that browsers can display them, under a random, unguessable file name.
 - **Hide text**: shows only the icon or image. The title is still used as the tooltip and the screen reader label. This option is ignored when no icon or image is set, so a tab is never blank. The mobile side menu always keeps the text.
 
 ## Issues
