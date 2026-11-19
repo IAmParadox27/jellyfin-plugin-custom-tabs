@@ -413,11 +413,32 @@
                     const byKey = {};
                     entries.forEach(function (entry) { byKey[entry.key] = entry; });
 
+                    // Something new (a library, or an icon a plugin added since
+                    // the order was saved) goes next to its neighbours in the
+                    // default order (just before the next one already listed,
+                    // else just after the previous one), not at the very end,
+                    // so e.g. a new header icon doesn't land after the user menu
                     const ordered = state.order.filter(function (key) { return byKey[key]; });
-                    entries.forEach(function (entry) {
-                        if (ordered.indexOf(entry.key) === -1) {
-                            ordered.push(entry.key);
+                    entries.forEach(function (entry, i) {
+                        if (ordered.indexOf(entry.key) !== -1) {
+                            return;
                         }
+                        for (let j = i + 1; j < entries.length; j++) {
+                            const next = ordered.indexOf(entries[j].key);
+                            if (next !== -1) {
+                                ordered.splice(next, 0, entry.key);
+                                return;
+                            }
+                        }
+                        let at = ordered.length;
+                        for (let j = i - 1; j >= 0; j--) {
+                            const previous = ordered.indexOf(entries[j].key);
+                            if (previous !== -1) {
+                                at = previous + 1;
+                                break;
+                            }
+                        }
+                        ordered.splice(at, 0, entry.key);
                     });
                     state.order = ordered;
 

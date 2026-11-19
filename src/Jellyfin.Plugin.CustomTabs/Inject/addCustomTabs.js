@@ -510,38 +510,43 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 return;
             }
 
-            let desired;
-            {
-                const rank = new Map(this.headerIconOrder.map((key, i) => [String(key).toLowerCase(), i]));
-                const ranked = [];
-                const unrankedOurs = [];
-                const unrankedNative = [];
-                items.forEach((item, position) => {
-                    const r = this.headerIconRank(item, rank);
-                    if (r !== undefined) {
-                        ranked.push({ item, r, position });
-                    } else if (this.ourHeaderButtonIn(item)) {
-                        unrankedOurs.push(item);
-                    } else {
-                        unrankedNative.push(item);
-                    }
-                });
+            // With a saved order, only the icons it lists are moved (gathered
+            // into the container in that order), plus custom buttons it does
+            // not mention, which go just in front of them. Icons it does not
+            // list (e.g. ones another plugin added after the order was saved)
+            // are left exactly where their plugin put them.
+            const rank = new Map(this.headerIconOrder.map((key, i) => [String(key).toLowerCase(), i]));
+            const ranked = [];
+            const unrankedOurs = [];
+            items.forEach((item, position) => {
+                const r = this.headerIconRank(item, rank);
+                if (r !== undefined) {
+                    ranked.push({ item, r, position });
+                } else if (this.ourHeaderButtonIn(item)) {
+                    unrankedOurs.push(item);
+                }
+            });
 
-                ranked.sort((a, b) => a.r - b.r || a.position - b.position);
-                desired = unrankedOurs.concat(ranked.map((entry) => entry.item), unrankedNative);
+            ranked.sort((a, b) => a.r - b.r || a.position - b.position);
+            const desired = unrankedOurs.concat(ranked.map((entry) => entry.item));
+            if (!desired.length) {
+                return;
             }
 
-            const inPlace = items.every((item) => item.parentElement === container)
-                && desired.every((item, i) => items[i] === item);
+            const inContainer = Array.from(container.children).filter((child) => desired.indexOf(child) !== -1);
+            const inPlace = inContainer.length === desired.length
+                && inContainer.every((child, i) => child === desired[i]);
             if (inPlace) {
                 return;
             }
 
-            // Re-insert the items as one run where the first of them inside
-            // the container is now, leaving anything else where it is
+            // Re-insert them as one run where the first of them inside the
+            // container is now (or the first native icon there)
             const marker = document.createComment('customTabs');
-            const firstInside = items.find((item) => item.parentElement === container);
-            container.insertBefore(marker, firstInside || null);
+            const anchor = inContainer[0]
+                || items.find((item) => item.parentElement === container && !this.ourHeaderButtonIn(item))
+                || null;
+            container.insertBefore(marker, anchor);
             desired.forEach((item) => container.insertBefore(item, marker));
             marker.remove();
             console.debug('CustomTabs: Reordered the header icons');
