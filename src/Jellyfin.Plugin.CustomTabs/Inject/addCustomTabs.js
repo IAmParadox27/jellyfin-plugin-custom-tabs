@@ -574,8 +574,12 @@ if (typeof window.customTabsPlugin == 'undefined') {
             // Jellyfin's (and other plugins') icons switched off on the
             // settings page; matched on any of their names
             const hiddenIcons = this.hiddenHeaderIcons || [];
+            const hiddenInHeader = this.hiddenTabs || [];
             items.forEach((item) => {
                 if (this.ourHeaderButtonIn(item)) {
+                    // A custom tab placed as a header icon, left out of the header
+                    const keys = this.headerIconKeys(item);
+                    item.classList.toggle('customTabsHidden', keys.some((key) => hiddenInHeader.indexOf(key) !== -1));
                     return;
                 }
                 const hide = hiddenIcons.length > 0
@@ -1264,10 +1268,9 @@ if (typeof window.customTabsPlugin == 'undefined') {
             const hidden = (isDrawer ? this.hiddenDrawerTabs : this.hiddenTabs) || [];
             children.forEach((el) => {
                 if (isOurs(el)) {
-                    if (isDrawer) {
-                        const customKey = this.tabKey(el, selector);
-                        el.classList.toggle('customTabsHidden', !!customKey && hidden.indexOf(customKey) !== -1);
-                    }
+                    // Custom tabs can be left out of the header or the drawer
+                    const customKey = this.tabKey(el, selector);
+                    el.classList.toggle('customTabsHidden', !!customKey && hidden.indexOf(customKey) !== -1);
                     return;
                 }
                 const key = this.tabKey(el, selector);

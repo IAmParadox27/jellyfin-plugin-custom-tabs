@@ -150,6 +150,13 @@
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" data-id="chkShowInHeader" checked />
+                        <span>Show in the header</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Untick to keep the tab only in the side menu. Enabled (at the top) turns it off everywhere.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="customTabCheckboxLabel">
                         <input type="checkbox" class="customTabCheckbox" data-id="chkShowInDrawer" checked />
                         <span>Show in the side menu</span>
                     </label>
@@ -326,6 +333,12 @@
                         }
                     });
                     CustomTabsConfig.configurationWrapper.addEventListener("change", (event) => {
+                        if (event.target.getAttribute('data-id') === "chkShowInHeader") {
+                            const card = event.target.closest("[data-id=tab-config]");
+                            CustomTabsConfig.setInHeader('custom:' + card.dataset.tabId, event.target.checked);
+                            CustomTabsConfig.renderOrderList();
+                            return;
+                        }
                         if (event.target.getAttribute('data-id') === "chkShowInDrawer") {
                             const card = event.target.closest("[data-id=tab-config]");
                             CustomTabsConfig.setInDrawer('custom:' + card.dataset.tabId, event.target.checked);
@@ -393,6 +406,16 @@
                         };
                         listElement.addEventListener("input", onOverride);
                         listElement.addEventListener("change", (event) => {
+                            if (event.target.hasAttribute('data-header-toggle')) {
+                                const key = event.target.getAttribute('data-header-toggle');
+                                CustomTabsConfig.setInHeader(key, event.target.checked);
+                                const rowName = listElement.querySelector('[data-key="' + CSS.escape(key) + '"] .customTabOrderName');
+                                const entry = CustomTabsConfig.orderLists.tabs.entries().find(function (e) { return e.key === key; });
+                                if (rowName && entry) {
+                                    rowName.textContent = CustomTabsConfig.rowName('tabs', entry, !rowName.closest('[data-key]').classList.contains('isDisabled'));
+                                }
+                                return;
+                            }
                             if (event.target.hasAttribute('data-drawer-toggle')) {
                                 const key = event.target.getAttribute('data-drawer-toggle');
                                 CustomTabsConfig.setInDrawer(key, event.target.checked);
@@ -682,7 +705,8 @@
                     if (o && o.HideIcon) notes.push('no icon');
                     else if (o && (o.Icon || o.ImageUrl)) notes.push('new icon');
                     if (!shown) notes.push(entry.custom ? 'disabled' : 'hidden in header');
-                    if (listName === 'tabs' && CustomTabsConfig.orderLists.tabs.drawerHidden.indexOf(entry.key) !== -1) notes.push('not in side menu');
+                    if (entry.custom && CustomTabsConfig.orderLists.tabs.hidden.indexOf(entry.key) !== -1) notes.push('not in header');
+                    if (CustomTabsConfig.orderLists.tabs.drawerHidden.indexOf(entry.key) !== -1) notes.push('not in side menu');
                     return text + (notes.length ? ' (' + notes.join(', ') + ')' : '');
                 },
                 // The panel under an opened Tab order row
@@ -692,6 +716,7 @@
                     li.setAttribute('data-details-for', key);
 
                     if (entry.custom) {
+                        li.appendChild(CustomTabsConfig.headerToggle(key));
                         li.appendChild(CustomTabsConfig.drawerToggle(key));
                         const note = document.createElement('div');
                         note.className = 'fieldDescription';
@@ -767,6 +792,41 @@
                             box.checked = shown;
                         }
                     }
+                },
+                // Header visibility of a custom tab, shown on its card and in
+                // its Tab order panel. Stored with Jellyfin's tabs in HiddenTabs.
+                setInHeader: function (key, shown) {
+                    const list = CustomTabsConfig.orderLists.tabs.hidden;
+                    const at = list.indexOf(key);
+                    if (shown && at !== -1) list.splice(at, 1);
+                    if (!shown && at === -1) list.push(key);
+                    const id = key.substring(7);
+                    const card = Array.from(document.querySelectorAll("[data-id=tab-config]"))
+                        .find(function (c) { return c.dataset.tabId === id; });
+                    const box = card && card.querySelector('[data-id=chkShowInHeader]');
+                    if (box && box.checked !== shown) {
+                        box.checked = shown;
+                    }
+                },
+                // "Show in the header" checkbox for a custom tab's panel
+                headerToggle: function (key) {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'customTabDetailField';
+                    const label = document.createElement('label');
+                    label.className = 'customTabCheckboxLabel';
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'customTabCheckbox';
+                    input.setAttribute('data-header-toggle', key);
+                    input.checked = CustomTabsConfig.orderLists.tabs.hidden.indexOf(key) === -1;
+                    const span = document.createElement('span');
+                    span.textContent = 'Show in the header';
+                    label.append(input, span);
+                    const help = document.createElement('div');
+                    help.className = 'fieldDescription';
+                    help.textContent = 'Untick to keep the tab only in the side menu. The switch at the start of the row (Enabled) turns it off everywhere.';
+                    wrap.append(label, help);
+                    return wrap;
                 },
                 // "Show in the side menu" checkbox for a Tab order panel
                 drawerToggle: function (key) {
@@ -992,6 +1052,8 @@
                     fieldset.dataset.tabId = (tabConfig.Id || CustomTabsConfig.newId()).toLowerCase();
                     fieldset.querySelector('[data-id=chkShowInDrawer]').checked =
                         CustomTabsConfig.orderLists.tabs.drawerHidden.indexOf('custom:' + fieldset.dataset.tabId) === -1;
+                    fieldset.querySelector('[data-id=chkShowInHeader]').checked =
+                        CustomTabsConfig.orderLists.tabs.hidden.indexOf('custom:' + fieldset.dataset.tabId) === -1;
                     CustomTabsConfig.configurationWrapper.appendChild(template);
                     CustomTabsConfig.updatePreview(fieldset);
                     CustomTabsConfig.updateCardState(fieldset);
