@@ -75,5 +75,13 @@ The likelihood is the plugin hasn't been updated for that version of Jellyfin an
 ```
 <i><strong>Note:</strong> With the above `<style>` tags this will be applied to Jellyfin as a whole, to only affect the tab you're working on, you can surround with `#customTab_{index} { ... }` where `{index}` starts at 0 and counts up for every custom tab added.</i>
 
+## Icons and Images
+
+Each tab can show an icon or an image alongside, or instead of, its text:
+
+- **Icon**: a [Material icon](https://fonts.google.com/icons?icon.set=Material+Icons) name, such as `movie`, `live_tv` or `request_page`. Jellyfin already ships this icon font.
+- **Image URL**: any image URL, such as a service's logo. If both are set, the image is used.
+- **Hide text**: shows only the icon or image. The title is still used as the tooltip and the screen reader label. This option is ignored when no icon or image is set, so a tab is never blank. The mobile side menu always keeps the text.
+
 ## Issues
 If you find an issue with any of the sections or usage of the plugin, please open an issue on GitHub. Please make sure to check the closed issues in case your issue has already been resolved, and also make sure to check the other plugins available from me as another plugin may have experienced the same issue.

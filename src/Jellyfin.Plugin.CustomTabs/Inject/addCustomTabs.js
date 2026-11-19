@@ -156,6 +156,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     return;
                 }
 
+                this.ensureIconStyles();
+
                 // Loop through configs and create a tab for each one
                 configs.forEach((config, i) => {
                     const customTabId = `customTabButton_${i}`;
@@ -171,7 +173,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
 
                     const title = document.createElement("div");
                     title.classList.add("emby-button-foreground");
-                    title.innerText = config.Title;
+                    const showText = this.fillTabLabel(title, config);
 
                     const button = document.createElement("button");
                     button.type = "button";
@@ -179,6 +181,10 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     button.classList.add("emby-tab-button", "emby-button");
                     button.setAttribute("data-index", i + 2);
                     button.setAttribute("id", customTabId);
+                    if (!showText) {
+                        button.setAttribute("aria-label", config.Title);
+                        button.setAttribute("title", config.Title);
+                    }
                     button.appendChild(title);
 
                     tabsSlider.appendChild(button);
@@ -193,6 +199,71 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }).catch((error) => {
                 console.error('CustomTabs: Error fetching tab configs:', error);
             });
+        },
+
+        // --- Tab icons and images ---------------------------------------------
+
+        // Returns the element for a tab's image or Material icon, or null when
+        // the tab has neither. An image wins when both are configured.
+        buildTabIcon: function(config) {
+            const imageUrl = (config.ImageUrl || '').trim();
+            if (imageUrl) {
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.alt = '';
+                img.className = 'customTabIcon customTabImage';
+                img.setAttribute('aria-hidden', 'true');
+                return img;
+            }
+
+            // Jellyfin's Material icon font maps "material-icons <name>" to a
+            // glyph, so only allow characters that appear in icon names.
+            const iconName = (config.Icon || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+            if (iconName) {
+                const span = document.createElement('span');
+                span.className = `material-icons customTabIcon ${iconName}`;
+                span.setAttribute('aria-hidden', 'true');
+                return span;
+            }
+
+            return null;
+        },
+
+        // Text is only hidden when there is an icon or image to show instead
+        shouldShowText: function(config, icon) {
+            return !config.HideTitle || !icon || !config.Title;
+        },
+
+        // Fills a legacy tab's label and reports whether the text is shown
+        fillTabLabel: function(container, config) {
+            const icon = this.buildTabIcon(config);
+            const showText = this.shouldShowText(config, icon);
+
+            if (icon) {
+                container.appendChild(icon);
+            }
+
+            if (showText) {
+                const label = document.createElement('span');
+                label.className = 'customTabLabel';
+                label.textContent = config.Title;
+                container.appendChild(label);
+            }
+
+            return showText;
+        },
+
+        ensureIconStyles: function() {
+            if (document.getElementById('customTabsIconStyles')) {
+                return;
+            }
+
+            const style = document.createElement('style');
+            style.id = 'customTabsIconStyles';
+            style.textContent = '.customTabIcon{vertical-align:middle;}'
+                + '.customTabImage{height:1.5em;width:auto;max-width:6em;object-fit:contain;display:inline-block;}'
+                + '.emby-button-foreground > .customTabIcon + .customTabLabel{margin-left:.4em;vertical-align:middle;}';
+            document.head.appendChild(style);
         },
 
         // --- Jellyfin 12 Modern layout ---------------------------------------
@@ -240,6 +311,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 }
 
                 this.ensureModernStyles();
+                this.ensureIconStyles();
                 this.syncModern();
                 this.startModernObserver();
             });
@@ -366,7 +438,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     }
 
                     link.id = id;
-                    this.decorateModernTab(link, config, i);
+                    this.decorateModernTab(link, config, i, true);
                     list.appendChild(item);
                     console.log(`CustomTabs: Added ${id} to the modern drawer`);
                 });
@@ -399,13 +471,39 @@ if (typeof window.customTabsPlugin == 'undefined') {
             return tab;
         },
 
-        decorateModernTab: function(link, config, index) {
+        // The drawer is a labelled list with room to spare, so it always keeps
+        // the text; HideTitle only applies to the header bar.
+        decorateModernTab: function(link, config, index, isDrawer) {
             link.setAttribute('href', `#/home?tab=${index + 2}`);
             link.removeAttribute('aria-current');
-            this.setModernLabel(link, config.Title);
 
-            link.querySelectorAll('.MuiButton-startIcon, .MuiListItemIcon-root, svg')
-                .forEach((icon) => icon.remove());
+            const icon = this.buildTabIcon(config);
+            const showText = isDrawer || this.shouldShowText(config, icon);
+            this.setModernLabel(link, showText ? config.Title : '');
+
+            // Drop the cloned tab's own icon, but reuse MUI's icon slot for
+            // ours so it picks up the native spacing and sizing.
+            link.querySelectorAll('svg').forEach((svg) => svg.remove());
+            const slot = link.querySelector('.MuiButton-startIcon, .MuiListItemIcon-root');
+
+            if (icon && slot) {
+                slot.replaceChildren(icon);
+                if (!showText) {
+                    slot.style.margin = '0';
+                }
+            } else {
+                if (slot) {
+                    slot.remove();
+                }
+                if (icon) {
+                    link.insertBefore(icon, link.firstChild);
+                }
+            }
+
+            if (!showText) {
+                link.setAttribute('aria-label', config.Title);
+                link.setAttribute('title', config.Title);
+            }
         },
 
         // The header button keeps its label in a trailing text node; the drawer

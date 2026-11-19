@@ -38,7 +38,24 @@
                 <label class="inputLabel inputLabelUnfocused" for="templateDisplayText">Display Text</label>
                 <label class="inputLabel inputLabelUnfocused" for="templateDisplayText"></label>
                 <input id="templateDisplayText" data-id="txtDisplayText" type="text" is="emby-input" min="0" class="emby-input">
-                <div class="fieldDescription">The title of the tab.</div>
+                <div class="fieldDescription">The title of the tab. Still used as the tooltip and screen reader label when the text is hidden.</div>
+            </div>
+            <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="templateIcon">Icon (optional)</label>
+                <input id="templateIcon" data-id="txtIcon" type="text" is="emby-input" class="emby-input" placeholder="e.g. movie, live_tv, request_page">
+                <div class="fieldDescription">A Material icon name to show on the tab. Browse names at <a is="emby-linkbutton" class="button-link" href="https://fonts.google.com/icons?icon.set=Material+Icons" target="_blank">fonts.google.com/icons</a>.</div>
+            </div>
+            <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="templateImageUrl">Image URL (optional)</label>
+                <input id="templateImageUrl" data-id="txtImageUrl" type="text" is="emby-input" class="emby-input" placeholder="https://example.com/logo.png">
+                <div class="fieldDescription">An image to show on the tab instead of an icon. Takes priority over the icon when both are set.</div>
+            </div>
+            <div class="checkboxContainer checkboxContainer-withDescription">
+                <label>
+                    <input type="checkbox" is="emby-checkbox" data-id="chkHideTitle" />
+                    <span>Hide text (show only the icon or image)</span>
+                </label>
+                <div class="fieldDescription checkboxFieldDescription">Only applies when an icon or image is set. The mobile side menu always keeps the text.</div>
             </div>
             <div class="inputContainer">
                 <label class="inputLabel inputLabelUnfocused" for="templateHtmlContent">Html Content</label>
@@ -76,6 +93,9 @@
                         const tab = {
                             Title: tabConfig.querySelector("[data-id=txtDisplayText]").value,
                             ContentHtml: tabConfig.querySelector("[data-id=templateHtmlContent]").value,
+                            Icon: tabConfig.querySelector("[data-id=txtIcon]").value.trim(),
+                            ImageUrl: tabConfig.querySelector("[data-id=txtImageUrl]").value.trim(),
+                            HideTitle: tabConfig.querySelector("[data-id=chkHideTitle]").checked,
                         };
                         
                         config.Tabs.push(tab);
@@ -129,6 +149,9 @@
                     //template.querySelector('[data-id=hiddenSectionId]').value = tabConfig.SectionId;
                     template.querySelector('[data-id=txtDisplayText]').value = tabConfig.Title;
                     template.querySelector('[data-id=templateHtmlContent]').value = tabConfig.ContentHtml;
+                    template.querySelector('[data-id=txtIcon]').value = tabConfig.Icon || '';
+                    template.querySelector('[data-id=txtImageUrl]').value = tabConfig.ImageUrl || '';
+                    template.querySelector('[data-id=chkHideTitle]').checked = !!tabConfig.HideTitle;
 
                     const el = CustomTabsConfig.configurationWrapper.appendChild(template);
                 },
