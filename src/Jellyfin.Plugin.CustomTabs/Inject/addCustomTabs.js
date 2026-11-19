@@ -11,6 +11,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
         configPromise: null,
         tabOrder: [],
         headerIconOrder: [],
+        hiddenTabs: [],
+        hiddenHeaderIcons: [],
         modernObserver: null,
         modernPending: false,
         modernMutating: false,
@@ -106,9 +108,15 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 const icons = order.HeaderIcons || order.headerIcons;
                 this.tabOrder = Array.isArray(tabs) ? tabs : [];
                 this.headerIconOrder = Array.isArray(icons) ? icons : [];
+                const hiddenTabs = order.HiddenTabs || order.hiddenTabs;
+                const hiddenIcons = order.HiddenHeaderIcons || order.hiddenHeaderIcons;
+                this.hiddenTabs = Array.isArray(hiddenTabs) ? hiddenTabs.map((k) => String(k).toLowerCase()) : [];
+                this.hiddenHeaderIcons = Array.isArray(hiddenIcons) ? hiddenIcons.map((k) => String(k).toLowerCase()) : [];
             }).catch(() => {
                 this.tabOrder = [];
                 this.headerIconOrder = [];
+                this.hiddenTabs = [];
+                this.hiddenHeaderIcons = [];
             });
         },
 
@@ -312,6 +320,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 + '.customTabHeaderButton .customTabImage{height:24px;max-width:48px;display:block;}'
                 + '.customTabHeaderButton .customTabLabel{font-size:.875rem;white-space:nowrap;}'
                 + '.customTabHeaderButton[aria-current="page"]{background-color:rgba(255,255,255,.12);}'
+                + '.customTabsHidden{display:none !important;}'
                 // On narrow screens the header icons scroll sideways instead of
                 // running off the edge. The group is right-aligned with an auto
                 // margin rather than justify-content, so that when it overflows
@@ -474,7 +483,11 @@ if (typeof window.customTabsPlugin == 'undefined') {
         recordHeaderIcons: function(items) {
             const labels = [];
             items.forEach((item) => {
-                if (this.ourHeaderButtonIn(item) || !item.getClientRects().length) {
+                // Skip ours and icons hidden by their plugin (e.g. SyncPlay when
+                // unavailable), but keep ones switched off here, so they stay
+                // on the settings page and can be switched back on
+                if (this.ourHeaderButtonIn(item)
+                    || (!item.getClientRects().length && !item.classList.contains('customTabsHidden'))) {
                     return; // ours, or hidden (e.g. SyncPlay when unavailable)
                 }
                 const label = this.nativeButtonLabel(item);
@@ -507,6 +520,18 @@ if (typeof window.customTabsPlugin == 'undefined') {
             if (!items.length) {
                 return;
             }
+
+            // Jellyfin's (and other plugins') icons switched off on the
+            // settings page; matched on any of their names
+            const hiddenIcons = this.hiddenHeaderIcons || [];
+            items.forEach((item) => {
+                if (this.ourHeaderButtonIn(item)) {
+                    return;
+                }
+                const hide = hiddenIcons.length > 0
+                    && this.headerIconKeys(item).some((key) => hiddenIcons.indexOf(key) !== -1);
+                item.classList.toggle('customTabsHidden', hide);
+            });
 
             // Icons inside the tab bar never belong there: Jellyfin Enhanced
             // puts its tray at the start of it, before the logo, because it
@@ -1043,6 +1068,17 @@ if (typeof window.customTabsPlugin == 'undefined') {
         arrangeTabs: function(container, selector) {
             const isOurs = (el) => el.matches(selector) || !!el.querySelector(selector);
             const children = Array.from(container.children);
+
+            // Jellyfin's own tabs switched off on the settings page
+            const hidden = this.hiddenTabs || [];
+            children.forEach((el) => {
+                if (isOurs(el)) {
+                    return;
+                }
+                const key = this.tabKey(el, selector);
+                el.classList.toggle('customTabsHidden', !!key && hidden.indexOf(key) !== -1);
+            });
+
             if (!children.some(isOurs)) {
                 return;
             }

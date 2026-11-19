@@ -21,12 +21,12 @@
         <form class="customTabsConfigurationForm">
             <div class="customTabOrderSection">
                 <h2 class="sectionTitle">Tab order</h2>
-                <div class="fieldDescription">Number the tabs in the order they should appear in the header, Jellyfin's own tabs included. Change a number or use the arrows. Applies to the newer header layout, where libraries appear as tabs; in the classic layout custom tabs always come after Home and Favorites. Tabs set to Header icons (right) are ordered in the next list.</div>
+                <div class="fieldDescription">Number the tabs in the order they should appear in the header, Jellyfin's own tabs included. Change a number or use the arrows. Use the switch at the start of a row to show or hide that tab; for a custom tab it is the same as its Enabled switch. Applies to the newer header layout, where libraries appear as tabs; in the classic layout custom tabs always come after Home and Favorites. Tabs set to Header icons (right) are ordered in the next list.</div>
                 <ol id="tabOrderList" class="customTabOrderList" data-list="tabs"></ol>
             </div>
             <div class="customTabOrderSection">
                 <h2 class="sectionTitle">Header icon order</h2>
-                <div class="fieldDescription">Number the icon buttons on the right of the header, Jellyfin's own (and other plugins') together with tabs set to Header icons (right). Jellyfin's icons are listed once you have opened the Jellyfin home page in this browser with this version of the plugin installed. The user menu (profile picture) is pinned to the right end, like the menu button on the left, and can't be moved.</div>
+                <div class="fieldDescription">Number the icon buttons on the right of the header, Jellyfin's own (and other plugins') together with tabs set to Header icons (right). Jellyfin's icons are listed once you have opened the Jellyfin home page in this browser with this version of the plugin installed. The user menu (profile picture) is pinned to the right end, like the menu button on the left, and can't be moved. Use the switch at the start of a row to show or hide that icon.</div>
                 <ol id="headerIconOrderList" class="customTabOrderList" data-list="icons"></ol>
                 <div class="fieldDescription" data-id="headerIconsHint" style="display:none;">No Jellyfin icons found yet. Open the Jellyfin home page in this browser, then come back to this page.</div>
             </div>
@@ -69,6 +69,14 @@
         #customTabsConfigurationPage .customTabOrderMove { background: none; border: 1px solid rgba(255,255,255,.2); color: inherit; border-radius: .3em; width: 2em; height: 2em; cursor: pointer; font: inherit; line-height: 1; }
         #customTabsConfigurationPage .customTabOrderMove:disabled { opacity: .3; cursor: default; }
         #customTabsConfigurationPage .customTabOrderRow.isPinned { background: rgba(255,255,255,.04); }
+        #customTabsConfigurationPage .customTabSwitch { position: relative; flex: none; width: 2.4em; height: 1.35em; cursor: pointer; }
+        #customTabsConfigurationPage .customTabSwitchSpacer { cursor: default; }
+        #customTabsConfigurationPage .customTabSwitchInput { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+        #customTabsConfigurationPage .customTabSwitchTrack { position: absolute; inset: 0; border-radius: 1em; background: #7a7a7a; transition: background .15s; pointer-events: none; }
+        #customTabsConfigurationPage .customTabSwitchTrack::after { content: ""; position: absolute; top: .15em; left: .15em; width: 1.05em; height: 1.05em; border-radius: 50%; background: #fff; transition: transform .15s; }
+        #customTabsConfigurationPage .customTabSwitchInput:checked + .customTabSwitchTrack { background: #00a4dc; }
+        #customTabsConfigurationPage .customTabSwitchInput:checked + .customTabSwitchTrack::after { transform: translateX(1.05em); }
+        #customTabsConfigurationPage .customTabSwitchInput:focus-visible + .customTabSwitchTrack { outline: 2px solid #00a4dc; outline-offset: 2px; }
         #customTabsConfigurationPage .customTabOrderRow.isPinned .customTabOrderNumber { opacity: .6; }
         #customTabsConfigurationPage .customTabOrderRow.isPinned .customTabOrderKind { background: rgba(255,255,255,.18); }
         #customTabsConfigurationPage .customTabOrderPinnedNote { opacity: .65; font-size: .9em; }
@@ -195,7 +203,9 @@
                     const config = {
                         Tabs: [],
                         TabOrder: CustomTabsConfig.orderLists.tabs.order.slice(),
-                        HeaderIconOrder: CustomTabsConfig.orderLists.icons.order.slice()
+                        HeaderIconOrder: CustomTabsConfig.orderLists.icons.order.slice(),
+                        HiddenTabs: CustomTabsConfig.orderLists.tabs.hidden.slice(),
+                        HiddenHeaderIcons: CustomTabsConfig.orderLists.icons.hidden.slice()
                     };
                     
                     // loop over tab configs
@@ -234,6 +244,8 @@
                             CustomTabsConfig.stockNames = ['Home', 'Favorites'].concat(results[1]);
                             CustomTabsConfig.orderLists.tabs.order = (config.TabOrder || []).slice();
                             CustomTabsConfig.orderLists.icons.order = (config.HeaderIconOrder || []).slice();
+                            CustomTabsConfig.orderLists.tabs.hidden = (config.HiddenTabs || []).map(function (k) { return String(k).toLowerCase(); });
+                            CustomTabsConfig.orderLists.icons.hidden = (config.HiddenHeaderIcons || []).map(function (k) { return String(k).toLowerCase(); });
                             // Draw the order lists once all tabs are in, so new
                             // entries get their default places
                             CustomTabsConfig.loading = true;
@@ -313,6 +325,11 @@
                     document.querySelectorAll(".customTabOrderList").forEach((listElement) => {
                         const name = listElement.getAttribute('data-list');
                         listElement.addEventListener("change", (event) => {
+                            if (event.target.classList.contains('customTabSwitchInput')) {
+                                const row = event.target.closest('[data-key]');
+                                CustomTabsConfig.setShown(name, row.getAttribute('data-key'), event.target.checked);
+                                return;
+                            }
                             if (event.target.classList.contains('customTabOrderNumber')) {
                                 const row = event.target.closest('[data-key]');
                                 CustomTabsConfig.moveInOrder(name, row.getAttribute('data-key'), parseInt(event.target.value, 10) - 1);
@@ -333,8 +350,8 @@
                 // Keys: "stock:<label>" for Jellyfin's tabs, matched on their
                 // label in the header, and "custom:<id>" for custom tabs.
                 orderLists: {
-                    tabs: { element: '#tabOrderList', order: [], entries: function () { return CustomTabsConfig.tabOrderEntries(); } },
-                    icons: { element: '#headerIconOrderList', order: [], entries: function () { return CustomTabsConfig.headerIconEntries(); } }
+                    tabs: { element: '#tabOrderList', order: [], hidden: [], entries: function () { return CustomTabsConfig.tabOrderEntries(); } },
+                    icons: { element: '#headerIconOrderList', order: [], hidden: [], entries: function () { return CustomTabsConfig.headerIconEntries(); } }
                 },
                 stockNames: ['Home', 'Favorites'],
                 newId: function () {
@@ -454,8 +471,11 @@
                     list.innerHTML = '';
                     ordered.forEach(function (key, i) {
                         const entry = byKey[key];
+                        // Custom tabs are shown when enabled; Jellyfin's own
+                        // when not in the hidden list
+                        const shown = entry.custom ? !entry.disabled : state.hidden.indexOf(key) === -1;
                         const row = document.createElement('li');
-                        row.className = 'customTabOrderRow' + (entry.custom ? ' isCustom' : '') + (entry.disabled ? ' isDisabled' : '');
+                        row.className = 'customTabOrderRow' + (entry.custom ? ' isCustom' : '') + (shown ? '' : ' isDisabled');
                         row.setAttribute('data-key', key);
 
                         const number = document.createElement('input');
@@ -468,7 +488,7 @@
 
                         const name = document.createElement('span');
                         name.className = 'customTabOrderName';
-                        name.textContent = entry.name + (entry.disabled ? ' (disabled)' : '');
+                        name.textContent = entry.name + (shown ? '' : ' (hidden)');
 
                         const kind = document.createElement('span');
                         kind.className = 'customTabOrderKind';
@@ -490,7 +510,7 @@
                         down.textContent = '\u2193';
                         down.disabled = i === ordered.length - 1;
 
-                        row.append(number, name, kind, up, down);
+                        row.append(CustomTabsConfig.visibilitySwitch(entry.name, shown), number, name, kind, up, down);
                         list.appendChild(row);
                     });
 
@@ -501,6 +521,48 @@
                         list.appendChild(CustomTabsConfig.pinnedRow(ordered.length + 1, 'User menu (profile picture)',
                             'Always stays at the right end of the header'));
                     }
+                },
+                // Show/hide switch at the start of each row
+                visibilitySwitch: function (name, shown) {
+                    const label = document.createElement('label');
+                    label.className = 'customTabSwitch';
+                    label.title = shown ? 'Shown in the header. Switch off to hide it.' : 'Hidden from the header. Switch on to show it.';
+
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'customTabSwitchInput';
+                    input.checked = shown;
+                    input.setAttribute('aria-label', 'Show ' + name);
+
+                    const track = document.createElement('span');
+                    track.className = 'customTabSwitchTrack';
+                    track.setAttribute('aria-hidden', 'true');
+
+                    label.append(input, track);
+                    return label;
+                },
+                // Custom tabs map onto their card's Enabled switch; Jellyfin's
+                // own tabs and icons onto the list's hidden keys
+                setShown: function (listName, key, shown) {
+                    if (key.indexOf('custom:') === 0) {
+                        const id = key.substring(7);
+                        const card = Array.from(document.querySelectorAll("[data-id=tab-config]"))
+                            .find(function (c) { return c.dataset.tabId === id; });
+                        if (card) {
+                            card.querySelector('[data-id=chkEnabled]').checked = shown;
+                            CustomTabsConfig.updateCardState(card);
+                        }
+                        return;
+                    }
+
+                    const hidden = CustomTabsConfig.orderLists[listName].hidden;
+                    const at = hidden.indexOf(key);
+                    if (shown && at !== -1) {
+                        hidden.splice(at, 1);
+                    } else if (!shown && at === -1) {
+                        hidden.push(key);
+                    }
+                    CustomTabsConfig.renderOrder(listName);
                 },
                 pinnedRow: function (position, title, note) {
                     const row = document.createElement('li');
@@ -537,7 +599,11 @@
                     const down = up.cloneNode(true);
                     down.textContent = '\u2193';
 
-                    row.append(number, name, kind, up, down);
+                    const spacer = document.createElement('span');
+                    spacer.className = 'customTabSwitch customTabSwitchSpacer';
+                    spacer.title = 'Always shown';
+
+                    row.append(spacer, number, name, kind, up, down);
                     return row;
                 },
                 moveInOrder: function (listName, key, newIndex) {

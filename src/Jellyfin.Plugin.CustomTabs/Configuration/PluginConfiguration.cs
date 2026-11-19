@@ -21,6 +21,12 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
         // format as TabOrder; native buttons are matched on their label
         // (aria-label or title). Empty keeps custom buttons before them.
         public string[] HeaderIconOrder { get; set; } = Array.Empty<string>();
+
+        // Jellyfin's own tabs and header icons the admin has switched off,
+        // as "stock:<label>" keys. Custom tabs use their Enabled flag instead.
+        public string[] HiddenTabs { get; set; } = Array.Empty<string>();
+
+        public string[] HiddenHeaderIcons { get; set; } = Array.Empty<string>();
     }
 
     public class TabConfig

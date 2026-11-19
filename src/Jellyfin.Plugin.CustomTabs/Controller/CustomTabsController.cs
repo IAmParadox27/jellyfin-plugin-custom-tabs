@@ -22,7 +22,13 @@ namespace Jellyfin.Plugin.CustomTabs.Controller
         public ActionResult GetTabOrder()
         {
             PluginConfiguration config = CustomTabsPlugin.Instance.Configuration;
-            return Ok(new { Tabs = config.TabOrder, HeaderIcons = config.HeaderIconOrder });
+            return Ok(new
+            {
+                Tabs = config.TabOrder,
+                HeaderIcons = config.HeaderIconOrder,
+                HiddenTabs = config.HiddenTabs,
+                HiddenHeaderIcons = config.HiddenHeaderIcons
+            });
         }
 
         // Admin only: the raw image bytes are the request body.
