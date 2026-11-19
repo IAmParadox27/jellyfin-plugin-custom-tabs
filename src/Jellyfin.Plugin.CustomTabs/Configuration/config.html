@@ -48,6 +48,12 @@
         #customTabsConfigurationPage .customTabListActions { display: flex; justify-content: flex-end; gap: 1em; margin-bottom: 1em; }
         #customTabsConfigurationPage .customTabCardHeader .checkboxContainer { margin: 0; }
         #customTabsConfigurationPage .customTabSection { margin-top: 1.5em; }
+        /* Plain checkboxes, styled here rather than with Jellyfin's emby-checkbox:
+           that element is upgraded by script, and on browsers that need its
+           polyfill (Safari) only some cloned checkboxes were upgraded, so they
+           came out in different sizes. */
+        #customTabsConfigurationPage .customTabCheckboxLabel { display: inline-flex; align-items: center; gap: .6em; cursor: pointer; }
+        #customTabsConfigurationPage .customTabCheckbox { width: 1.25em; height: 1.25em; margin: 0; flex: none; accent-color: #00a4dc; cursor: pointer; }
         #customTabsConfigurationPage .customTabSection > h3 { margin: 0 0 .8em; padding-bottom: .3em; border-bottom: 1px solid rgba(255,255,255,.1); font-weight: 500; }
         #customTabsConfigurationPage .customTabCard.customTabDisabled .customTabSection { opacity: .5; }
         #customTabsConfigurationPage .customTabDisabledBadge { display: none; font-size: .8em; padding: .1em .6em; border-radius: 1em; background: rgba(255,255,255,.15); margin-left: .6em; vertical-align: middle; }
@@ -64,8 +70,8 @@
                     </button>
                 </h2>
                 <div class="checkboxContainer">
-                    <label>
-                        <input type="checkbox" is="emby-checkbox" data-id="chkEnabled" checked />
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" data-id="chkEnabled" checked />
                         <span>Enabled</span>
                     </label>
                 </div>
@@ -81,8 +87,8 @@
                     <div class="fieldDescription">The title of the tab. Still used as the tooltip and screen reader label when the text is hidden.</div>
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input type="checkbox" is="emby-checkbox" data-id="chkHideTitle" />
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" data-id="chkHideTitle" />
                         <span>Hide text (show only the icon)</span>
                     </label>
                     <div class="fieldDescription checkboxFieldDescription">Only applies when an icon or image is set. The mobile side menu always keeps the text.</div>
