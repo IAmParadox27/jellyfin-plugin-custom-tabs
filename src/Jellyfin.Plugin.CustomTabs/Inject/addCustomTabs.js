@@ -100,7 +100,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 }
             }).then((order) => {
                 // { Tabs, HeaderIcons }; casing depends on the server's JSON settings
-                order = order || {};
+                // A plain array is the tab order on its own
+                order = Array.isArray(order) ? { Tabs: order } : (order || {});
                 const tabs = order.Tabs || order.tabs;
                 const icons = order.HeaderIcons || order.headerIcons;
                 this.tabOrder = Array.isArray(tabs) ? tabs : [];
@@ -757,9 +758,19 @@ if (typeof window.customTabsPlugin == 'undefined') {
             return `stock:${this.normaliseLabel(el.textContent)}`;
         },
 
+        // The server logo / home link: a link to the home page with no tab
+        // selected, or one showing an image
+        isHeaderLogo: function(el) {
+            const link = el.tagName === 'A' ? el : el.querySelector('a');
+            const href = (link && link.getAttribute('href')) || '';
+            return /^#\/home(\.html)?\/?$/.test(href) || !!el.querySelector('img');
+        },
+
         // Orders built-in and custom tabs together by the numbered list on
-        // the settings page. Tabs it does not mention (e.g. a library added
-        // since) keep their place after the listed ones. React does not
+        // the settings page. Anything unlisted at the very start of the bar,
+        // such as the server logo / home link next to the menu button, stays
+        // locked there; other tabs it does not mention (e.g. a library added
+        // since) go after the listed ones. React does not
         // re-sort nodes that only moved, and the observer re-applies this
         // after any re-render.
         arrangeTabs: function(container, selector) {
@@ -775,13 +786,16 @@ if (typeof window.customTabsPlugin == 'undefined') {
             }
 
             const rank = new Map(this.tabOrder.map((key, i) => [String(key).toLowerCase(), i]));
+            const locked = [];
             const ranked = [];
             const unrankedNative = [];
             const unrankedOurs = [];
             children.forEach((el, position) => {
                 const key = this.tabKey(el, selector);
                 const r = key ? rank.get(key) : undefined;
-                if (r !== undefined) {
+                if (r === undefined && !isOurs(el) && (locked.length === position || this.isHeaderLogo(el))) {
+                    locked.push(el);
+                } else if (r !== undefined) {
                     ranked.push({ el, r, position });
                 } else if (isOurs(el)) {
                     unrankedOurs.push(el);
@@ -791,7 +805,7 @@ if (typeof window.customTabsPlugin == 'undefined') {
             });
 
             ranked.sort((a, b) => a.r - b.r || a.position - b.position);
-            const desired = ranked.map((entry) => entry.el).concat(unrankedNative, unrankedOurs);
+            const desired = locked.concat(ranked.map((entry) => entry.el), unrankedNative, unrankedOurs);
             if (desired.every((el, i) => children[i] === el)) {
                 return;
             }
