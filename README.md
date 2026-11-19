@@ -99,7 +99,7 @@ Each tab can show an icon or an image alongside, or instead of, its text:
 
 ### Theme-coloured images
 
-Images (a URL or an upload) normally keep their own colours. Tick **Match the theme colour**, in a custom tab's Icon section or a Jellyfin tab's ▾ panel, to fill the image's shape with the tab text colour instead, so it follows Jellyfin's theme and its hover and selected states like the built-in icons. This needs an image with a transparent background (PNG or SVG). Images from other websites only work if that site allows it (CORS); uploaded images always do. Material icons always use the theme colour.
+Images (a URL or an upload) normally keep their own colours. Tick **Match the theme colour**, in a custom tab's Icon section or a Jellyfin tab's ▾ panel, to redraw the image in the tab text colour, so it follows Jellyfin's theme and its hover and selected states like the built-in icons. The image's detail is kept: its lightest parts get the full colour and darker parts a fainter shade, so a logo like a coloured disc with a symbol inside keeps the symbol. A one-colour image, such as a black silhouette, is filled in solid. Transparent areas stay clear, so it works best with a transparent background (PNG or SVG). Images from other websites only work if that site allows it (CORS); uploaded images always do. Material icons always use the theme colour.
 
 ### Default icons
 
