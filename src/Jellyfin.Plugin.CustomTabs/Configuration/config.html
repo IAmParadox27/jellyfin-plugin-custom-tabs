@@ -148,6 +148,13 @@
                     </select>
                     <div class="fieldDescription">Header icons puts a button next to search and the user menu instead of a tab. Set an icon for it; without one the title is shown as text.</div>
                 </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" data-id="chkShowInDrawer" checked />
+                        <span>Show in the side menu</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">The menu that opens from the menu button, which lists the tabs on small screens. Works with either placement.</div>
+                </div>
             </div>
 
             <div class="customTabSection">
@@ -319,6 +326,12 @@
                         }
                     });
                     CustomTabsConfig.configurationWrapper.addEventListener("change", (event) => {
+                        if (event.target.getAttribute('data-id') === "chkShowInDrawer") {
+                            const card = event.target.closest("[data-id=tab-config]");
+                            CustomTabsConfig.setInDrawer('custom:' + card.dataset.tabId, event.target.checked);
+                            CustomTabsConfig.renderOrderList();
+                            return;
+                        }
                         if (event.target.getAttribute('data-id') === "chkEnabled" || event.target.getAttribute('data-id') === "selPlacement") {
                             CustomTabsConfig.updateCardState(event.target.closest("[data-id=tab-config]"));
                             return;
@@ -382,10 +395,7 @@
                         listElement.addEventListener("change", (event) => {
                             if (event.target.hasAttribute('data-drawer-toggle')) {
                                 const key = event.target.getAttribute('data-drawer-toggle');
-                                const list = CustomTabsConfig.orderLists.tabs.drawerHidden;
-                                const at = list.indexOf(key);
-                                if (event.target.checked && at !== -1) list.splice(at, 1);
-                                if (!event.target.checked && at === -1) list.push(key);
+                                CustomTabsConfig.setInDrawer(key, event.target.checked);
                                 const rowName = listElement.querySelector('[data-key="' + CSS.escape(key) + '"] .customTabOrderName');
                                 const entry = CustomTabsConfig.orderLists.tabs.entries().find(function (e) { return e.key === key; });
                                 if (rowName && entry) {
@@ -741,6 +751,23 @@
                     li.appendChild(scope);
                     return li;
                 },
+                // One place for the side menu setting, which a custom tab's card
+                // and its Tab order panel both show
+                setInDrawer: function (key, shown) {
+                    const list = CustomTabsConfig.orderLists.tabs.drawerHidden;
+                    const at = list.indexOf(key);
+                    if (shown && at !== -1) list.splice(at, 1);
+                    if (!shown && at === -1) list.push(key);
+                    if (key.indexOf('custom:') === 0) {
+                        const id = key.substring(7);
+                        const card = Array.from(document.querySelectorAll("[data-id=tab-config]"))
+                            .find(function (c) { return c.dataset.tabId === id; });
+                        const box = card && card.querySelector('[data-id=chkShowInDrawer]');
+                        if (box && box.checked !== shown) {
+                            box.checked = shown;
+                        }
+                    }
+                },
                 // "Show in the side menu" checkbox for a Tab order panel
                 drawerToggle: function (key) {
                     const wrap = document.createElement('div');
@@ -963,6 +990,8 @@
                     const fieldset = template.querySelector('[data-id=tab-config]');
                     // Tabs saved before ordering existed get an id here, kept on Save
                     fieldset.dataset.tabId = (tabConfig.Id || CustomTabsConfig.newId()).toLowerCase();
+                    fieldset.querySelector('[data-id=chkShowInDrawer]').checked =
+                        CustomTabsConfig.orderLists.tabs.drawerHidden.indexOf('custom:' + fieldset.dataset.tabId) === -1;
                     CustomTabsConfig.configurationWrapper.appendChild(template);
                     CustomTabsConfig.updatePreview(fieldset);
                     CustomTabsConfig.updateCardState(fieldset);
