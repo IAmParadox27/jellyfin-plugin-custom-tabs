@@ -33,6 +33,10 @@ namespace Jellyfin.Plugin.CustomTabs.Configuration
 
         public string[] HiddenHeaderIcons { get; set; } = Array.Empty<string>();
 
+        // Adds a "Custom Tabs" link to this settings page in the user menu
+        // and the Settings page, for admins only
+        public bool ShowSettingsLink { get; set; } = true;
+
         // Per-tab changes to Jellyfin's own tabs (renamed, icon changed or
         // hidden, text hidden), keyed like TabOrder ("stock:<label>")
         public StockTabOverride[] TabOverrides { get; set; } = Array.Empty<StockTabOverride>();

@@ -29,7 +29,8 @@ namespace Jellyfin.Plugin.CustomTabs.Controller
                 HiddenTabs = config.HiddenTabs,
                 HiddenHeaderIcons = config.HiddenHeaderIcons,
                 HiddenDrawerTabs = config.HiddenDrawerTabs,
-                TabOverrides = config.TabOverrides
+                TabOverrides = config.TabOverrides,
+                ShowSettingsLink = config.ShowSettingsLink
             });
         }
 

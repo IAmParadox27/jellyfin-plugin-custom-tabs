@@ -47,6 +47,10 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 return;
             }
 
+            // Works whether or not any tabs are set up, so the settings stay
+            // one click away
+            this.startSettingsLink();
+
             // Jellyfin 12's Modern layout renders its own React header and hides the
             // legacy .skinHeader tab bar, so the legacy injection never becomes visible.
             if (this.isModernLayout()) {
@@ -116,6 +120,8 @@ if (typeof window.customTabsPlugin == 'undefined') {
                 this.hiddenHeaderIcons = Array.isArray(hiddenIcons) ? hiddenIcons.map((k) => String(k).toLowerCase()) : [];
                 const hiddenDrawer = order.HiddenDrawerTabs || order.hiddenDrawerTabs;
                 this.hiddenDrawerTabs = Array.isArray(hiddenDrawer) ? hiddenDrawer.map((k) => String(k).toLowerCase()) : [];
+                const showLink = order.ShowSettingsLink !== undefined ? order.ShowSettingsLink : order.showSettingsLink;
+                this.showSettingsLink = showLink !== false;
                 const overrides = order.TabOverrides || order.tabOverrides;
                 this.tabOverrides = {};
                 (Array.isArray(overrides) ? overrides : []).forEach((o) => {
@@ -132,11 +138,138 @@ if (typeof window.customTabsPlugin == 'undefined') {
                     }
                 });
             }).catch(() => {
+                this.showSettingsLink = true;
                 this.tabOrder = [];
                 this.headerIconOrder = [];
                 this.hiddenTabs = [];
                 this.hiddenDrawerTabs = [];
                 this.hiddenHeaderIcons = [];
+            });
+        },
+
+        // A "Custom Tabs" link to this plugin's settings page, for admins: in
+        // the user menu (profile picture) of the newer header, and in the
+        // Admin section of the Settings page. Jellyfin only shows its own
+        // admin links (Dashboard, Metadata) to admins, so the link is added
+        // next to them and inherits that check. Turned off with
+        // ShowSettingsLink on the settings page.
+        settingsPageHash: '#/configurationpage?name=' + encodeURIComponent('Custom Tabs'),
+
+        startSettingsLink: function() {
+            if (this.settingsLinkStarted) {
+                return;
+            }
+            this.settingsLinkStarted = true;
+
+            this.loadConfigs().then(() => {
+                this.settingsLinkReady = true;
+                this.ensureSettingsLinks();
+
+                let pending = false;
+                this.settingsLinkObserver = new MutationObserver(() => {
+                    if (pending) {
+                        return;
+                    }
+                    pending = true;
+                    requestAnimationFrame(() => {
+                        pending = false;
+                        this.ensureSettingsLinks();
+                    });
+                });
+                this.settingsLinkObserver.observe(document.body, { childList: true, subtree: true });
+            });
+        },
+
+        ensureSettingsLinks: function() {
+            if (!this.settingsLinkReady) {
+                return;
+            }
+
+            if (this.showSettingsLink === false || !this.isAuthenticated()) {
+                document.querySelectorAll('.customTabsSettingsLink').forEach((el) => el.remove());
+                return;
+            }
+
+            this.ensureUserMenuSettingsLink();
+            this.ensurePreferencesSettingsLink();
+        },
+
+        // The newer header's user menu, which stays in the page (hidden)
+        // between openings
+        ensureUserMenuSettingsLink: function() {
+            const menu = document.getElementById('app-user-menu');
+            if (!menu || menu.querySelector('.customTabsSettingsLink')) {
+                return;
+            }
+
+            const anchor = menu.querySelector('a[href$="/metadata"]') || menu.querySelector('a[href$="/dashboard"]');
+            if (!anchor) {
+                return;
+            }
+
+            const item = anchor.cloneNode(true);
+            item.classList.add('customTabsSettingsLink');
+            item.classList.remove('Mui-focusVisible', 'Mui-selected');
+            item.removeAttribute('id');
+            item.setAttribute('href', this.settingsPageHash);
+            item.setAttribute('tabindex', '-1');
+
+            const iconBox = item.querySelector('.MuiListItemIcon-root');
+            if (iconBox) {
+                const icon = document.createElement('span');
+                icon.className = 'material-icons';
+                icon.setAttribute('aria-hidden', 'true');
+                icon.textContent = 'tab';
+                // Sized like MUI's own 24px menu icons
+                icon.style.cssText = 'font-size:1.5rem;width:1em;height:1em;line-height:1;overflow:hidden;display:inline-block;';
+                iconBox.replaceChildren(icon);
+            }
+
+            const text = item.querySelector('.MuiListItemText-root .MuiTypography-root') || item.querySelector('.MuiListItemText-root');
+            if (text) {
+                text.textContent = 'Custom Tabs';
+            }
+
+            // A copied item has none of React's handlers, so close the menu
+            // the way a click outside it would
+            item.addEventListener('click', () => {
+                const backdrop = menu.querySelector('.MuiBackdrop-root');
+                if (backdrop) {
+                    backdrop.click();
+                }
+            });
+
+            anchor.after(item);
+        },
+
+        // The Settings page (mypreferencesmenu), which every layout has
+        ensurePreferencesSettingsLink: function() {
+            document.querySelectorAll('.adminSection').forEach((section) => {
+                if (section.querySelector('.customTabsSettingsLink')) {
+                    return;
+                }
+
+                const anchor = section.querySelector('a[href$="/metadata"]') || section.querySelector('a[href$="/dashboard"]');
+                if (!anchor) {
+                    return;
+                }
+
+                const link = anchor.cloneNode(true);
+                link.classList.add('customTabsSettingsLink');
+                link.setAttribute('href', this.settingsPageHash);
+
+                const icon = link.querySelector('.listItemIcon');
+                if (icon) {
+                    icon.className = 'material-icons listItemIcon listItemIcon-transparent tab';
+                    icon.textContent = '';
+                }
+
+                const text = link.querySelector('.listItemBodyText');
+                if (text) {
+                    text.textContent = 'Custom Tabs';
+                }
+
+                anchor.after(link);
             });
         },
 

@@ -20,6 +20,16 @@
 
         <form class="customTabsConfigurationForm">
             <div class="customTabOrderSection">
+                <h2 class="sectionTitle">General</h2>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="customTabCheckboxLabel">
+                        <input type="checkbox" class="customTabCheckbox" id="chkShowSettingsLink" checked />
+                        <span>Link to these settings in the user menu</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Adds a Custom Tabs item that opens this page to the user menu (the profile picture in the header) and to the Admin section of the Settings page. Only administrators see it, next to Jellyfin's Dashboard and Metadata links.</div>
+                </div>
+            </div>
+            <div class="customTabOrderSection">
                 <h2 class="sectionTitle">Tab order</h2>
                 <div class="fieldDescription">Number the tabs in the order they should appear in the header, Jellyfin's own tabs included. Change a number or use the arrows. Use the switch at the start of a row to show or hide that tab in the header (for a custom tab it is the same as its Enabled switch), and the ▾ button for its other settings, including whether it appears in the side menu. Applies to the newer header layout, where libraries appear as tabs; in the classic layout custom tabs always come after Home and Favorites. Tabs set to Header icons (right) are ordered in the next list.</div>
                 <ol id="tabOrderList" class="customTabOrderList" data-list="tabs"></ol>
@@ -203,7 +213,7 @@
                         <input type="checkbox" class="customTabCheckbox" data-id="chkTintImage" />
                         <span>Match the theme colour</span>
                     </label>
-                    <div class="fieldDescription checkboxFieldDescription">Fills the image's shape with the tab text colour, so it follows Jellyfin's theme (and hover and selected states) like the built-in icons. Needs an image with a transparent background, such as a PNG or SVG; images from other websites only work if that site allows it, uploaded images always do.</div>
+                    <div class="fieldDescription checkboxFieldDescription">Redraws the image in the tab text colour, so it follows Jellyfin's theme (and hover and selected states) like the built-in icons. Its detail is kept: light parts get the full colour, darker parts a fainter shade, and a one-colour image is filled in solid. Works best with a transparent background, such as a PNG or SVG; images from other websites only work if that site allows it, uploaded images always do.</div>
                 </div>
             </div>
 
@@ -240,6 +250,7 @@
                     Dashboard.showLoadingMsg();
                     const config = {
                         Tabs: [],
+                        ShowSettingsLink: document.querySelector('#chkShowSettingsLink').checked,
                         TabOrder: CustomTabsConfig.orderLists.tabs.order.slice(),
                         HeaderIconOrder: CustomTabsConfig.orderLists.icons.order.slice(),
                         HiddenTabs: CustomTabsConfig.orderLists.tabs.hidden.slice(),
@@ -286,6 +297,7 @@
                         .then(function (results) {
                             const config = results[0];
                             CustomTabsConfig.stockNames = ['Home', 'Favorites'].concat(results[1]);
+                            document.querySelector('#chkShowSettingsLink').checked = config.ShowSettingsLink !== false;
                             CustomTabsConfig.orderLists.tabs.order = (config.TabOrder || []).slice();
                             CustomTabsConfig.orderLists.icons.order = (config.HeaderIconOrder || []).slice();
                             CustomTabsConfig.orderLists.tabs.hidden = (config.HiddenTabs || []).map(function (k) { return String(k).toLowerCase(); });
@@ -919,7 +931,7 @@
                         field('Hide text (show only the icon)', 'HideTitle', 'checkbox'),
                         CustomTabsConfig.withIconLink(field('Material icon name', 'Icon', 'text', 'e.g. movie, live_tv, favorite', 'Replaces Jellyfin\'s icon. Leave empty to keep it.')),
                         CustomTabsConfig.withUpload(field('Image URL', 'ImageUrl', 'text', 'https://example.com/logo.png', 'Used instead of the Material icon when both are set: a web address, or upload a file below.'), o.ImageUrl),
-                        field('Match the theme colour', 'TintImage', 'checkbox', '', "Fills the image\'s shape with the tab text colour, so it follows Jellyfin\'s theme (and hover and selected states) like the built-in icons. Needs an image with a transparent background, such as a PNG or SVG; images from other websites only work if that site allows it, uploaded images always do."),
+                        field('Match the theme colour', 'TintImage', 'checkbox', '', "Redraws the image in the tab text colour, so it follows Jellyfin\'s theme (and hover and selected states) like the built-in icons. Its detail is kept: light parts get the full colour, darker parts a fainter shade, and a one-colour image is filled in solid. Works best with a transparent background, such as a PNG or SVG; images from other websites only work if that site allows it, uploaded images always do."),
                         field('Hide icon', 'HideIcon', 'checkbox')
                     );
                     li.appendChild(CustomTabsConfig.drawerToggle(key));
